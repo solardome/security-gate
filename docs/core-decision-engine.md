@@ -25,8 +25,9 @@ and implementation-agnostic.
 ## Inputs (Authoritative)
 - Normalized findings (Unified Finding Schema below), derived from scanner outputs.
 - Context inputs (from context.json or CLI), including:
-  - pipeline_stage (pr, main, release, prod), branch_type, environment
-  - repo_criticality, exposure, change_type
+  - pipeline_stage (pr, main, release, prod), environment
+  - exposure, change_type
+  - (optional, record-only in MVP) branch_type, repo_criticality
   - scanner_version pinning, scan_timestamp, artifact signing/provenance signals
 - Policy-as-code rules and accepted risk objects.
 
@@ -217,14 +218,14 @@ Release risk is computed as:
   - <20: +15
 
 ### Release Risk Algorithm (Deterministic)
-1) Normalize findings to Unified Finding Schema.
-2) Compute risk_score for each finding.
-3) Identify hard-stop findings (SECRET, MALWARE, PROVENANCE).
-4) Apply noise budget (Section 6) to non-hard-stop findings.
-5) max_finding_risk = max(risk_score of remaining findings; 0 if none).
-6) Compute release_risk with context and trust modifiers.
-7) Apply decision matrix for the current stage (Section 5).
-8) Generate decision trace and decision.json.
+Release risk is computed over the **scoring set** (after governance suppressions and before PR-only noise budget). The canonical pipeline and ordering are defined in **Deterministic Evaluation Order** below; this section summarizes the numeric computation only:
+
+1) Compute per-finding `risk_score` for each finding in the scoring set (hard-stops are handled separately and force BLOCK).
+2) Apply the PR-only noise budget (stage=pr only) to select the non-hard-stop findings considered for `max_finding_risk`.
+3) `max_finding_risk = max(risk_score of considered findings; 0 if none)`.
+4) Compute `release_risk = clamp(max_finding_risk + stage_modifier + exposure_modifier + change_modifier + trust_modifier, 0, 100)`.
+5) Apply the stage decision matrix and escalation logic to derive ALLOW/WARN/BLOCK and exit code.
+6) Emit `decision.json` and the ordered `decision_trace`, including hashes for all decision-affecting inputs and visibility of suppressed findings.
 
 ## Deterministic Evaluation Order
 1) Ingest, validate, and hash every decision-affecting input (scanner outputs, context, policy, accepted risks); fatal errors follow the prescribed fail-closed behavior for each stage.
@@ -292,7 +293,7 @@ All selection or ranking of findings must follow a stable total order so that to
 2. `risk_score` descending.
 3. `severity` descending, with the fixed ranking `CRITICAL > HIGH > MEDIUM > LOW > INFO > UNKNOWN`.
 4. `fingerprint` lexicographically ascending as the final tie-breaker.
-Noise budget ranking applies this order to the non-hard-stop scoring set. `global selector=top_findings` uses the same stable order to pick `top_n` entries, and `selector=all_high_or_critical` filters to `severity` in `{HIGH, CRITICAL}` before sorting by this order to derive matched_fingerprints.
+Noise budget ranking applies this order to the non-hard-stop scoring set. `global selector.type=top_findings` uses the same stable order to pick `top_n` entries, and `selector.type=all_high_or_critical` filters to `severity` in `{HIGH, CRITICAL}` before sorting by this order to derive matched_fingerprints.
 
 ## 7) Noise Budget Mechanism (Guardrails)
 Purpose: reduce pr friction only. Noise budget MUST NOT apply to hard-stop domains.
@@ -325,7 +326,7 @@ The engine MUST output decision.json with the following structure:
   - context:
     - sha256: string
     - source: string
-    - payload: { pipeline_stage, branch_type, environment, repo_criticality, exposure, change_type }
+    - payload: { pipeline_stage, environment, exposure, change_type, (optional) branch_type, (optional) repo_criticality }
   - policy:
     - sha256: string
     - policy_version: string

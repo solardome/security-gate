@@ -75,7 +75,25 @@ Actions must be deterministic and may only tighten decisions (see Precedence Rul
 - warn_to_block: boolean (explicitly enforce WARN -> BLOCK in scoped stages)
 - noise_budget_top_k: integer (pr only; enabling the field for other stages is a fatal policy error; applied at step 6 of Deterministic Evaluation Order)
 - add_required_steps: array of deterministic step IDs (from core decision engine)
-- require_accepted_risk: boolean (requires a valid accepted risk for matching findings)
+- require_accepted_risk: object (requires a valid accepted risk for deterministically derived matched_fingerprints)
+  - selector: object (required)
+    - type: enum (top_findings | all_high_or_critical)
+    - top_n: integer (only for type=top_findings; default=1; bounds 1..10)
+  - scope: enum (scoring_set | considered_set) (default=scoring_set)
+    - scoring_set: derive fingerprints after governance suppressions and before PR-only noise budget
+    - considered_set: derive fingerprints after PR-only noise budget (stage=pr only)
+
+Selector semantics (MVP):
+- `all_high_or_critical`: select all non-hard-stop findings in the scoring set with severity in {HIGH, CRITICAL}.
+- `top_findings`: select the first `top_n` non-hard-stop findings by the canonical Deterministic Finding Ordering.
+- The resulting fingerprint list is the rule’s `matched_fingerprints` and is used to enforce `require_accepted_risk` (see enforcement below).
+
+Enforcement (MVP):
+- A rule with `require_accepted_risk` is evaluated at step 7 of the Deterministic Evaluation Order.
+- If the rule’s `when` conditions match and **no valid Accepted Risk** covers **every** `matched_fingerprints` produced by the selector (respecting stage/environment scope and expiry), the policy engine MUST tighten the outcome to:
+  - `decision=BLOCK` for stage=main/release/prod
+  - `decision=WARN` for stage=pr
+- The decision_trace MUST include a `policy.require_accepted_risk.missing` event with the bounded fingerprint list and total count, and `recommended_next_steps` MUST include `ADD_ACCEPTED_RISK`.
 
 ## Exception Objects (False Positives)
 Exceptions suppress known false positives. They are always time-bound and scoped.
@@ -132,7 +150,7 @@ Selectors, selectors-driven suppressions (e.g., require_accepted_risk), and the 
 2. `risk_score` descending.
 3. `severity` descending, using the fixed ranking `CRITICAL > HIGH > MEDIUM > LOW > INFO > UNKNOWN`.
 4. `fingerprint` lexicographically ascending as the final tie-breaker.
-`noise_budget_top_k` ranking applies these rules to the non-hard-stop scoring set. `selector=top_findings` selects the `top_n` entries by the same order, and `selector=all_high_or_critical` first filters to severity `{HIGH, CRITICAL}` before sorting by this order to derive `matched_fingerprints`.
+`noise_budget_top_k` ranking applies these rules to the non-hard-stop scoring set. `selector=top_findings` selects the `top_n` entries by the same order, and `selector.type=all_high_or_critical` first filters to severity `{HIGH, CRITICAL}` before sorting by this order to derive `matched_fingerprints`.
 
 ## MVP vs v2: Noise Budget and Selectors
 - MVP: Noise budget configuration is limited to `stage=pr` only. Selectors or suppression logic that rely on `noise_budget_top_k` must respect the deterministic ordering above and must not be extended to main/release/prod in the MVP.
@@ -206,7 +224,9 @@ rules:
       severity_in: [HIGH, CRITICAL]
       fix_available_in: [false]
     then:
-      require_accepted_risk: true
+      require_accepted_risk:
+        selector:
+          type: all_high_or_critical
 
   - id: R-HIGH-VULN-pr-REMEDIATION
     description: Require deterministic remediation steps for HIGH+ vulns in pr.

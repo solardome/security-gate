@@ -68,14 +68,16 @@ and safe defaults. It avoids implementation details.
 - llm consumes sanitized trace data and produces non-authoritative text only.
 
 ## Data Flow (Authoritative)
-1) Ingest scanner outputs and compute input hashes.
-2) Normalize to the unified finding schema (required fields enforced).
-3) Identify hard-stop findings (SECRET, MALWARE, PROVENANCE) and explicit provenance/signing conditions; they are marked `hard_stop` and evaluated before scoring or noise budget.
-4) Score the remaining findings (risk_score) and compute trust_score from provenance signals.
-5) Apply the PR-only noise budget (non-hard-stop findings only), exceptions, and accepted risk to the scoring set.
-6) Apply the stage decision matrix to derive ALLOW/WARN/BLOCK and exit code.
-7) Emit decision.json and summary.md with full decision trace.
-8) Optionally generate LLM explanation text using sanitized trace data.
+1) Ingest scanner outputs (files or stdin) and compute SHA-256 hashes for **all** decision-affecting inputs (scanner outputs, context, policy, accepted risks).
+2) Normalize all parsed findings into the unified finding schema (required fields enforced; substitutions are explicit and traced).
+3) Detect hard-stop conditions and emit any synthetic hard-stop findings (SECRET, MALWARE, PROVENANCE hard-stops, UNKNOWN_DOMAIN_MAPPING). Hard-stops are unsuppressible, bypass noise budget, and force BLOCK.
+4) Apply governance to produce the **scoring set**:
+   - apply valid exceptions and Accepted Risks with `suppress_from_scoring`
+   - record suppressed fingerprints and counts in the decision trace and reports
+5) Score **only** the scoring set (per-finding `risk_score`) and compute global `trust_score` from provenance/trust signals.
+6) Apply the **PR-only** noise budget *after scoring* to the scored scoring set (hard-stops excluded by definition); any attempt to enable noise budgeting for main/release/prod is invalid in MVP.
+7) Apply policy tightening and the stage decision matrix to derive ALLOW/WARN/BLOCK and exit code (including prod WARN→BLOCK escalation rules and allow-warn coverage rules).
+8) Emit decision artifacts (decision.json, summary.md, optional HTML) including full decision trace and input hashes; optionally generate LLM explanation text from sanitized trace data (non-authoritative).
 
 ## Deterministic vs AI Boundary
 - Deterministic boundary includes ingest, normalize, score, policy, and decision_trace.
