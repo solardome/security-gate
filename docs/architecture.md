@@ -70,11 +70,12 @@ and safe defaults. It avoids implementation details.
 ## Data Flow (Authoritative)
 1) Ingest scanner outputs and compute input hashes.
 2) Normalize to the unified finding schema (required fields enforced).
-3) Score findings (risk_score) and compute trust_score from provenance signals.
-4) Apply noise budget (PR only by default), exceptions, and accepted risk.
-5) Apply the stage decision matrix to derive ALLOW/WARN/BLOCK and exit code.
-6) Emit decision.json and summary.md with full decision trace.
-7) Optionally generate LLM explanation text using sanitized trace data.
+3) Identify hard-stop findings (SECRET, MALWARE, PROVENANCE) and explicit provenance/signing conditions; they are marked `hard_stop` and evaluated before scoring or noise budget.
+4) Score the remaining findings (risk_score) and compute trust_score from provenance signals.
+5) Apply the PR-only noise budget (non-hard-stop findings only), exceptions, and accepted risk to the scoring set.
+6) Apply the stage decision matrix to derive ALLOW/WARN/BLOCK and exit code.
+7) Emit decision.json and summary.md with full decision trace.
+8) Optionally generate LLM explanation text using sanitized trace data.
 
 ## Deterministic vs AI Boundary
 - Deterministic boundary includes ingest, normalize, score, policy, and decision_trace.
@@ -88,9 +89,15 @@ and safe defaults. It avoids implementation details.
 - trust_score directly affects release_risk via the trust modifier and can be used
   in policy rules.
 - Missing or unknown signals reduce trust_score and tighten gating.
+- All decision-affecting inputs (scanner outputs, context input, policy file, accepted risk file) are hashed and recorded in both decision.json and the decision_trace so the architecture produces a fully audit-ready snapshot of every influence on the decision.
+- Provenance and signing are enforced in two layers: explicit synthetic findings in `domain=PROVENANCE` that hard-stop BLOCK when deterministic requirements fail, and trust penalties that only adjust `trust_score`.
+  - Synthetic provenance hard stops cover `PROVENANCE_INVALID_SIGNATURE`, `PROVENANCE_MISMATCH`, `PROVENANCE_UNSIGNED_ARTIFACT`, and `PROVENANCE_INSUFFICIENT_LEVEL`, are normalized before scoring, and bypass governance suppressions and noise budget.
+  - Trust penalties only apply when the policy does not require the evidence (e.g., unsigned/unknown signatures or provenance_level=unknown without a minimum requirement).
+  - Deterministic evaluation always resolves these provenance hard stops before risk scoring and noise budgeting so that provenance failures block regardless of numeric scores.
 
 ## Failure Modes and Safe Defaults
-- Hard-stop domains (SECRET, MALWARE, PROVENANCE) always force BLOCK.
+- Hard-stop domains include SECRET, MALWARE, PROVENANCE (including the signed/provenance failure synthetic findings the core spec defines) and UNKNOWN_DOMAIN_MAPPING.
+- These hard-stop findings are never suppressible, bypass noise budgets, and always force BLOCK regardless of releases risk or trust.
 - input_sha256 is mandatory and computed at ingest; if it cannot be computed, the decision is fail-closed for stage=main, release, and prod. For stage=pr, proceed only with a recorded warning and low-trust defaults.
 - scan_timestamp must be present; if missing from scanner output, substitute ingest_time and record timestamp_source=ingest.
 - pr may produce WARN for partial data only when trust_score remains above the lowest bucket and no hard-stop exists.

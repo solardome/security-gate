@@ -3,6 +3,20 @@
 This document specifies module responsibilities, interfaces, and operational constraints.
 It aligns with `docs/core-decision-engine.md` and remains implementation-agnostic.
 
+## Fatal Errors and Fail-Closed Defaults (Authoritative)
+Fatal errors are deterministic pipeline failures that make the decision non-authoritative. The following conditions are fatal:
+- invalid/unsupported input format
+- cannot hash decision-affecting inputs
+- schema validation failure
+- policy parse failure
+- accepted risk parse/validation failure
+
+Fail-closed defaults:
+- stage=main/release/prod: fatal error => BLOCK and emit minimal decision.json with error metadata.
+- stage=pr: fatal error => WARN (exit_code=1) with low-trust defaults ONLY if scanner input is present and hashable; otherwise BLOCK.
+
+All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.
+
 ## cmd/cli
 Purpose:
 - Orchestrate the deterministic pipeline and produce exit codes 0/1/2.
@@ -24,12 +38,13 @@ Public Interfaces:
   - --llm <on|off> (optional, default off)
 
 Error Handling:
-- Missing required inputs or fatal pipeline errors result in safe-default decisions.
+- Fatal errors follow "Fatal Errors and Fail-Closed Defaults (Authoritative)".
 - LLM failures never change the decision status.
 
 Logging and Traceability:
 - Emits a summary of key inputs and outputs.
 - Ensures decision_trace is persisted as part of decision.json.
+- Records SHA-256 hashes for every decision-affecting input (scanner outputs, context, policy, and accepted risk files) so the trace ties each decision to the exact file contents.
 
 Security Considerations:
 - No network calls; local execution only.
@@ -48,7 +63,8 @@ Public Interfaces:
 - Accepts file paths or stdin; records source_scanner=trivy and source_version if present.
 
 Error Handling:
-- Invalid JSON or unreadable input is a fatal ingest error.
+- Invalid/unsupported input format (including unreadable or non-JSON input) is a fatal error.
+- Cannot hash decision-affecting inputs is a fatal error.
 
 Logging and Traceability:
 - Records input hashes, scan timestamps, and finding counts.
@@ -70,8 +86,9 @@ Public Interfaces:
 
 Error Handling:
 - Required fields must be populated; missing scan_timestamp uses ingest_time with timestamp_source=ingest, and input_sha256 must be computed at ingest.
-- If input_sha256 cannot be computed, fail-closed for stage=main, release, and prod; for stage=pr, proceed only with a recorded warning.
-- If domain cannot be mapped, set domain=CONFIG and severity=UNKNOWN, then warn.
+- Schema validation failure is a fatal error.
+- Cannot hash decision-affecting inputs is a fatal error.
+- If domain cannot be mapped, emit a synthetic hard-stop finding with title=UNKNOWN_DOMAIN_MAPPING, domain=CONFIG, severity=HIGH. Record the raw domain value in decision_trace. This finding is never suppressible and bypasses noise budget.
 
 Logging and Traceability:
 - Records normalization warnings and field substitutions in decision_trace.
@@ -92,7 +109,7 @@ Public Interfaces:
 
 Error Handling:
 - Missing trust signals are treated as unknown with safe penalties.
-- If scoring cannot be completed, emit a fatal error for safe-default handling.
+- Schema validation failure is a fatal error.
 
 Logging and Traceability:
 - Records all scoring inputs, modifiers, and outputs in decision_trace.
@@ -113,14 +130,15 @@ Public Interfaces:
 - Produces decision status and recommended_next_steps (deterministic only).
 
 Error Handling:
-- Invalid policy files are fatal and trigger safe-default decisions.
-- Expired accepted risks are ignored and recorded with governance warnings.
+- Policy parse failure is a fatal error.
+- Expired Accepted Risk handling follows the authoritative rules in the core decision engine and governance module.
 
 Logging and Traceability:
 - Records evaluated rules, exceptions, noise budget effects, and stage matrix outcome.
 
 Security Considerations:
-- No policy rule can override hard-stop domains.
+- No policy rule can override hard-stop findings or conditions.
+- Hard-stop domains tracked by the core spec are SECRET, MALWARE, PROVENANCE (including signing/provenance synthetic findings), and UNKNOWN_DOMAIN_MAPPING; they bypass noise budget, cannot be suppressed, and always force BLOCK.
 
 ## decision_trace
 Purpose:
@@ -134,10 +152,11 @@ Public Interfaces:
 - Provides a canonical trace structure for reporting and LLM explanation.
 
 Error Handling:
-- Failure to record trace data is fatal for main/release/prod.
+- All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.
 
 Logging and Traceability:
 - Ensures deterministic ordering and timestamped events.
+- Includes hash and source metadata for every decision-affecting input (scanner outputs, context, policy, accepted risks) so each event can be audited.
 
 Security Considerations:
 - Redacts sensitive fields; stores references to evidence, not raw secrets.
@@ -154,13 +173,18 @@ Public Interfaces:
 - Accepts a repo-local accepted risk file and returns applicable records.
 
 Error Handling:
-- Invalid entries are ignored and logged; expired items trigger escalation rules.
+- Accepted risk parse/validation failure is a fatal error.
+- Expired Accepted Risks are treated as INVALID (ignored for governance effects and gating).
+- Additionally, expiry escalation is enforced deterministically:
+  - stage=pr/main: if an expired Accepted Risk would have matched a HIGH/CRITICAL finding, the final outcome is at least WARN (do not silently ignore; record governance.expired).
+  - stage=release/prod: if an expired Accepted Risk would have matched a HIGH/CRITICAL finding, the final outcome is BLOCK (fail-closed), even if other factors would allow WARN/ALLOW.
+- Expired Accepted Risks never apply to hard-stop findings or conditions (unchanged).
 
 Logging and Traceability:
 - Records accepted risk IDs, scope checks, and expiry handling in decision_trace.
 
 Security Considerations:
-- No accepted risk can suppress hard-stop domains.
+- No accepted risk can suppress hard-stop findings or conditions.
 
 ## report
 Purpose:
@@ -174,7 +198,7 @@ Public Interfaces:
 - Emits decision.json with the authoritative schema and summary.md for humans.
 
 Error Handling:
-- Report generation failures are fatal for main/release/prod.
+- Schema validation failure for decision.json is a fatal error.
 
 Logging and Traceability:
 - Report files include references to input hashes and policy version.

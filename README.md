@@ -24,6 +24,8 @@ stage, exposure, trust, provenance, and governance. Teams face:
 - **Decision trace**: every input, modifier, and rule evaluation is auditable.
 - **Stage-aware escalation**: pr, main, release, and prod use distinct gates.
 - **Privacy-first local execution**: no SaaS, no external APIs, no network dependency.
+- **Input hashing**: all decision-affecting inputs (scanner outputs, context, policy, accepted risks) are hashed and recorded in decision.json/trace.
+- **Deterministic 'allow_warn_in_prod'**: it only keeps WARN when every warn-causing finding is covered; partial coverage still escalates to BLOCK.
 - **Accepted Risk / Justification Workflow**: time-bound, approved exceptions with expiry.
 - **Provenance-aware trust**: trust_score influences release risk and gating.
 - **Optional, non-authoritative LLM**: explanation-only, never part of decision logic.
@@ -47,11 +49,17 @@ stage, exposure, trust, provenance, and governance. Teams face:
 
 ## Decision Model Summary
 - Findings are normalized and scored deterministically (risk_score 0-100).
-- Hard-stop domains (SECRET, MALWARE, PROVENANCE) always force BLOCK.
+- Hard-stop domains include SECRET, MALWARE, PROVENANCE (including the explicit signing/provenance hard-stop findings defined in `docs/core-decision-engine.md`), and the synthetic UNKNOWN_DOMAIN_MAPPING.
+- Hard-stop findings are never suppressible, bypass noise budget, and always force BLOCK regardless of other signals.
 - trust_score (0-100) is computed from provenance and build context signals.
 - release_risk = max(finding risk) + context modifiers (stage, exposure, change, trust).
 - Noise budget can reduce pr friction but never applies to hard-stop domains.
 - A stage-specific decision matrix produces ALLOW, WARN, or BLOCK.
+- `allow_warn_in_prod` only avoids WARN→BLOCK when every warn-causing fingerprint is covered; partial coverage still results in BLOCK.
+
+### Provenance & Signing Layers
+- Explicit provenance/signing hard stops emit synthetic findings (`domain=PROVENANCE`, `hard_stop=true`, `risk_score=100`) for invalid signatures, provenance mismatches, unsigned artifacts when signing is required, or insufficient provenance level. These synthetic findings are evaluated ahead of scoring and noise budgeting and always block, regardless of trust_score or release_risk.
+- Trust penalties only adjust `trust_score` when optional provenance signals are missing (unsigned/unknown signatures or unknown provenance level when the policy does not demand them). Unsigned artifacts are therefore not automatically a minor penalty—only when the policy does not enforce the evidence. The canonical hard-stop tokens are `PROVENANCE_INVALID_SIGNATURE`, `PROVENANCE_MISMATCH`, `PROVENANCE_UNSIGNED_ARTIFACT`, and `PROVENANCE_INSUFFICIENT_LEVEL`.
 
 Stage identifiers are canonical tokens:
 | Legacy term | Canonical token |
@@ -94,11 +102,13 @@ MVP:
 - Trivy JSON ingestion (file path and optional stdin).
 - Deterministic scoring, trust computation, and stage-aware decisions.
 - decision.json and summary.md outputs; optional local LLM explanations.
+- Noise budget is PR-only in MVP. No noise budget on main/release/prod.
 
 Roadmap (non-exhaustive):
 - Additional scanners (e.g., Gitleaks) using the same unified schema.
 - Expanded policy rules and governance workflows.
 - Optional HTML report improvements.
+- Optional main-stage noise budget and advanced selector configuration.
 
 ## License Considerations
 - Apache 2.0 is the preferred license.

@@ -187,6 +187,7 @@ Trust is a first-class input to policy evaluation and release risk.
 ### Trust Usage
 - trust_score is added to decision.json and is addressable in policy rules.
 - trust_score contributes to release_risk via a trust modifier (see Section 4).
+- scan_timestamp freshness is validated before trust scoring. If the timestamp is more than 5 minutes in the future, or older than `now - max_age_days` (default 30 days) and no explicit override flag is present, the `scan_freshness` signal is forced to the unknown/low bucket (0.2) and the trace records an event (e.g., `scan_timestamp.stale` or `scan_timestamp.future`) with the offending timestamp and configured `max_age_days`. `timestamp_source` must still reflect whether the value came from the scanner or was substituted (ingest). This prevents freshness spoofing from artificially inflating trust.
 
 ## 4) Release Risk Computation
 Release risk is computed as:
@@ -226,11 +227,19 @@ Release risk is computed as:
 8) Generate decision trace and decision.json.
 
 ## Deterministic Evaluation Order
-1) Ingest and normalize inputs to the unified finding schema.
-2) Score findings and compute trust_score.
-3) Identify hard-stop domains (SECRET, MALWARE, PROVENANCE); mark them as hard_stop. Hard-stop always forces BLOCK.
-4) Apply noise budget to non-hard-stop findings only. Noise budget never applies to hard-stop domains and is scoped to stage=pr unless explicitly enabled by policy for stage=main.
-5) Compute max_finding_risk and release_risk, then apply the stage decision matrix to determine the stage outcome.
+1) Ingest, validate, and hash every decision-affecting input (scanner outputs, context, policy, accepted risks); fatal errors follow the prescribed fail-closed behavior for each stage.
+2) Normalize inputs into the Unified Finding Schema and derive stable fingerprints for each finding.
+3) Detect hard-stop conditions (e.g., SECRET, MALWARE, PROVENANCE, UNKNOWN_DOMAIN_MAPPING, synthetic provenance findings); these findings bypass governance and noise budget steps and always force BLOCK.
+4) Apply governance: valid exceptions and Accepted Risks with `suppress_from_scoring` effects remove findings from the scoring set, while each governance event records the suppressed fingerprints and counts in the trace/report. Expired or invalid accepted risks do not contribute to scoring (although their expiry escalation rules still apply).
+5) Score only the remaining scoring set, computing per-finding risk_score and the trust modifiers defined in Section 3.
+6) Apply the PR-only noise budget to the scored scoring set (hard-stop findings are excluded by definition); any noise budget configuration targeting main/release/prod is a fatal policy error.
+7) Evaluate policy rules in deterministic order, including selectors and tightening actions.
+8) Apply the stage matrix plus escalation logic (prod warn_to_block and allow_warn_in_prod coverage).
+9) Enforce governance floors such as “Accepted Risk covering HIGH/CRITICAL findings mandates at least WARN.”
+10) Emit `decision.json`, `decision_trace`, `summary.md`, and other optional reports, ensuring every suppressed finding remains visible with its `suppressed_by_*` flags.
+11) Optionally generate an LLM explanation artifact using sanitized, non-authoritative inputs derived from the finalized trace.
+
+Suppressed findings continue to appear in `decision.findings.items` with their suppression flags, and every governance event (exception, accepted risk) records the bounded fingerprint list and suppressed count so the audit trail remains complete even though those findings no longer feed into scoring.
 
 ## 5) Explicit Decision Matrices by Stage
 Hard-stop findings always force BLOCK regardless of numeric scores.
@@ -256,6 +265,12 @@ Hard-stop findings always force BLOCK regardless of numeric scores.
 - BLOCK: release_risk >= 41 or trust_score < 40
 - Default policy: WARN escalates to BLOCK in prod unless an approved accepted risk explicitly allows WARN in prod.
 
+## Prod WARN Escalation and allow_warn_in_prod Coverage
+Prod warn_to_block escalation applies globally. The deterministic **warn-causing set** consists of:
+1. All non-hard-stop findings in the scoring set with `severity >= HIGH`.
+2. If no severity values exist, the single top finding determined by the Deterministic Finding Ordering.
+The **warn_causing_fingerprints** are the fingerprints of that set. Escalation to BLOCK is prevented only when a valid Accepted Risk (active stage_scope includes prod, environment matches, not expired/revoked) with `allow_warn_in_prod=true` covers **every warn_causing_fingerprint**. Partial coverage is insufficient; any uncovered warn-causing fingerprint leaves the escalation intact and the final outcome is BLOCK. This rule never overrides hard-stop findings or other blocking causes.
+
 ## 6) Escalation Logic (Stage and Expiry)
 - Decisions are recomputed at every stage; no stage inherits decisions from earlier stages.
 - Accepted risks must explicitly list stage_scope and environment_scope.
@@ -271,17 +286,25 @@ Hard-stop findings always force BLOCK regardless of numeric scores.
 - Accepted Risk affects only the scoped finding fingerprints; unrelated findings or conditions may still cause BLOCK.
 - Decision trace MUST record accepted_risks_applied, accepted_risks_coverage (risk_id to finding_ids), and whether allow_warn_in_prod was used.
 
+## Deterministic Finding Ordering
+All selection or ranking of findings must follow a stable total order so that top-k subsets, noise budgets, and selectors stay deterministic. The canonical order is:
+1. `hard_stop` descending (`true` before `false`). (Noise budget never includes hard-stop findings, but selectors respect this precedence when they interact with mixed sets.)
+2. `risk_score` descending.
+3. `severity` descending, with the fixed ranking `CRITICAL > HIGH > MEDIUM > LOW > INFO > UNKNOWN`.
+4. `fingerprint` lexicographically ascending as the final tie-breaker.
+Noise budget ranking applies this order to the non-hard-stop scoring set. `global selector=top_findings` uses the same stable order to pick `top_n` entries, and `selector=all_high_or_critical` filters to `severity` in `{HIGH, CRITICAL}` before sorting by this order to derive matched_fingerprints.
+
 ## 7) Noise Budget Mechanism (Guardrails)
 Purpose: reduce pr friction only. Noise budget MUST NOT apply to hard-stop domains.
+Ranking for noise budget strictly follows the Deterministic Finding Ordering applied to the non-hard-stop scoring set.
 
 Default behavior:
-- pr: top-5 non-hard-stop findings by risk_score are considered for decision.
-- main: disabled (all findings considered) unless explicitly enabled by policy.
-- release/prod: disabled (all findings considered).
+- pr: top-5 non-hard-stop findings determined by the Deterministic Finding Ordering are considered for decision.
+- main/release/prod: noise budget disabled (all findings are considered). Any policy that attempts to enable noise budget for these stages is treated as a fatal policy error that triggers fail-closed behavior.
 
 Rules:
-- Noise budget is applied after scoring and before stage decision.
-- Suppressed findings remain in decision trace and summary metrics.
+- Noise budget is applied after scoring and before stage decision, and only for stage=pr.
+- Suppressed findings remain in the decision trace and summary metrics.
 - Hard-stop findings bypass noise budget and always count.
 
 ## 8) False Positives, Exceptions, Accepted Risk Governance
@@ -299,7 +322,18 @@ The engine MUST output decision.json with the following structure:
 - generated_at: RFC3339 timestamp
 - inputs:
   - scans: array of { source_scanner, source_version, input_sha256, scan_timestamp }
-  - context: { pipeline_stage, branch_type, environment, repo_criticality, exposure, change_type }
+  - context:
+    - sha256: string
+    - source: string
+    - payload: { pipeline_stage, branch_type, environment, repo_criticality, exposure, change_type }
+  - policy:
+    - sha256: string
+    - policy_version: string
+    - source: string
+  - accepted_risks:
+    - sha256: string
+    - source: string
+  - These hashes ensure every decision-affecting input is traceable. When policy is optional, `policy_version` MUST be `"embedded-default"` and `policy.sha256` MUST equal the SHA-256 of the embedded default policy text. When no accepted risks file is supplied, `accepted_risks.sha256` MUST be the hash of the canonical empty representation (`[]`). Decision_trace events for ingest, policy application, and governance MUST record the same hash/source metadata so the audit trail reflects the exact inputs that shaped the decision.
 - trust:
   - trust_score: number (0-100)
   - trust_signals: object with per-signal scores and raw inputs
@@ -310,6 +344,9 @@ The engine MUST output decision.json with the following structure:
   - suppressed_by_noise_budget: number
   - max_finding_risk: number
   - items: array of normalized findings with computed risk_score and hard_stop flag
+    - suppressed_by_accepted_risk: boolean
+    - suppressed_by_exception: boolean
+    - suppressed_by_noise_budget: boolean
 - scoring:
   - release_risk: number (0-100)
   - modifiers: { stage_modifier, exposure_modifier, change_modifier, trust_modifier }
@@ -328,10 +365,33 @@ The engine MUST output decision.json with the following structure:
   - array of deterministic step IDs
 - decision_trace:
   - array of ordered trace events (ingest, normalize, score, policy, decision)
+    - governance.applied, exception.applied, and noise_budget.applied events MUST emit:
+      - `suppressed_fingerprints`: array<string> (bounded to first 20 entries) listing the fingerprints suppressed in this step.
+      - `suppressed_count`: number of total suppressed fingerprints (may exceed the bounded list length).
+      - `suppressed_by`: string (e.g., `accepted_risk`, `exception`, `noise_budget`) describing the suppression source.
+    - These fields ensure every suppressed finding is auditable; the contained fingerprints must correspond to `decision.findings.items` where the matching `suppressed_by_*` boolean is true.
 - llm_explanation (optional):
   - enabled: boolean
   - non_authoritative: true
   - content_ref: string
+
+## Provenance & Signing: Hard-Stops vs Trust Penalties (Authoritative)
+Provenance and signing controls operate on two deterministic layers so that only explicit, policy-triggered violations block a release while weaker signals only adjust trust.
+
+1. **Hard-stop layer** emits synthetic findings with `domain=PROVENANCE`, `hard_stop=true`, `risk_score=100`, `severity=CRITICAL`, and a stable `fingerprint` derived from the hard-stop token plus the artifact identity and policy scope. These synthetic findings are normalized, traced, and evaluated before scoring and noise budgeting (see Deterministic Evaluation Order step 2); they cannot be suppressed or subject to noise budget.
+2. **Trust-penalty layer** adjusts `trust_score` only when the policy does not require the signal in question. Artifact signing and provenance level influence trust_score (see Section 3), but no synthetic finding is emitted unless a hard-stop condition fires.
+
+Canonical hard-stop conditions and their tokens:
+   - `artifact_signing_status = invalid` → `PROVENANCE_INVALID_SIGNATURE`
+   - `provenance_integrity_status = mismatch`/`invalid` → `PROVENANCE_MISMATCH`
+   - `policy.requires_signed_artifact = true` **and** `artifact_signing_status != verified` → `PROVENANCE_UNSIGNED_ARTIFACT`
+   - `policy.requires_provenance_level >= L2` **and** `provenance_level < required` → `PROVENANCE_INSUFFICIENT_LEVEL`
+
+Trust-penalty-only cases (no synthetic finding):
+   - `artifact_signing_status = unsigned`/`unknown` while the policy does **not** require a signed artifact.
+   - `provenance_level = unknown` when the policy does **not** enforce a minimum level.
+
+This separation ensures unsigned artifacts are not always just a minor penalty: they only force BLOCK when the policy requires signing or another hard-stop fails.
 
 ## 10) Deterministic recommended_next_steps
 The engine produces rule-based actions only. LLM text may rephrase but cannot add actions.
