@@ -2,245 +2,123 @@
 
 **Deterministic, stage-aware release decisions for CI/CD — not just scanner severities.**
 
-AI Security Auditor is a **local, privacy-first DevSecOps control** that consumes security scanner outputs and converts them into **clear, deterministic CI/CD decisions**:  
-**ALLOW / WARN / BLOCK**, with a full, auditable decision trace.
-
-Optional local LLM support (e.g. via Ollama) can generate **human-friendly explanations**, but **never influences decisions**.
-
----
-
-## Why this project exists
-
-Security scanners are good at one thing: **classifying findings**.  
-They are much worse at answering the real question CI/CD needs:
-
-> *“Is this release safe to move forward at this stage?”*
-
-Common problems teams face today:
-- CRITICAL findings block PRs but get ignored later
-- Hundreds of LOW/MEDIUM findings hide real risk
-- Different repositories gate differently
-- Suppressions become permanent and unaudited
-- Security decisions are implicit, not explainable
-
-**AI Security Auditor solves this by classifying releases, not findings.**
-
----
-
-## Core principles
-
-### 1. Severity ≠ Decision
-Scanner severities (CRITICAL/HIGH/…) describe findings.  
-This system produces **release decisions**: ALLOW, WARN, or BLOCK.
-
-The same finding may result in different decisions depending on:
-- pipeline stage
-- environment exposure
-- repository criticality
-- trust and provenance signals
-
----
-
-### 2. Deterministic by design
-All decisions are derived from:
-- a deterministic risk model
-- explicit policy-as-code rules
-
-There is **no probabilistic or AI-driven decision logic**.
-
----
-
-### 3. Stage-aware escalation
-Shift-left does not mean “block everything early”.
-
-Typical behavior:
-- **PR / feature branch** → signal and prioritize (WARN)
-- **main / release** → enforce policy (WARN or BLOCK)
-- **deploy-to-prod** → strict enforcement (BLOCK by default)
-
----
-
-### 4. Privacy-first, local execution
-- Runs fully offline
-- No SaaS, no external APIs, no cloud dependency
-- Designed for regulated and restricted environments
-
----
-
-### 5. Governance is a first-class feature
-The system includes a formal **Justification / Accepted Risk workflow**:
-- time-bound risk acceptance
-- required metadata (owner, ticket, expiry, scope)
-- approval rules for high-risk scenarios
-- automatic escalation when expiry is reached
-
-No permanent suppressions. No silent bypasses.
-
----
-
-### 6. Provenance- and trust-aware
-Not all inputs are equally trustworthy.
-
-Risk is influenced by:
-- scanner version pinning and freshness
-- artifact signing status
-- provenance level and build context
-
-Lower trust results in **stricter gating**, not silent acceptance.
-
----
-
-### 7. LLM is optional and non-authoritative
-If enabled, a local LLM may:
-- explain *why* a decision was made
-- summarize risk for developers
-
-It **cannot**:
-- change scores
-- override policy
-- suggest bypasses
-- issue commands
-
-LLM output is always clearly labeled as **non-authoritative**.
-
----
-
-## How it works (high level)
-
-1. **Ingest** scanner outputs (e.g. Trivy JSON)
-2. **Normalize** findings into a unified schema
-3. **Score** risk deterministically (including trust signals)
-4. **Evaluate policies** based on stage and context
-5. **Apply governance** (Accepted Risks, expiry, approvals)
-6. **Emit a decision** with a full decision trace
-7. *(Optional)* Generate an LLM-based explanation
-
----
-
-## Scanner input model
-
-- The system **does not run scanners**
-- It consumes outputs produced by your CI pipeline
-
-### Supported input mechanisms (MVP)
-- **Local file paths** (primary)
-- **stdin stream** (optional)
-
-Multiple inputs are supported (e.g. multi-image scans).
-
-All inputs are:
-- treated as untrusted
-- hashed
-- recorded in the decision trace
-
-A separate local context file (or CLI flags) provides CI metadata and provenance signals.
-
----
-
-## Decision outcomes
-
-The only CI-facing outcomes are:
-
-| Decision | Meaning |
-|--------|--------|
-| **ALLOW** | Release may proceed |
-| **WARN** | Release may proceed, attention required |
-| **BLOCK** | Release must not proceed |
-
-Exit codes are stable and deterministic:
-- `0` → ALLOW  
-- `1` → WARN  
-- `2` → BLOCK  
-
-Severity levels such as **CRITICAL** remain part of the input and audit trail, but are **not CI decisions**.
-
----
-
-## Outputs
-
-Each run produces deterministic artifacts:
-
-- `decision.json` — authoritative, machine-readable decision
-- `summary.md` — human-readable explanation
-- `report.html` — optional static report
-
-All artifacts include:
-- final decision
-- risk and trust scores
-- triggered rules
-- applied exceptions
-- accepted risks and expiry status
-- ranked top findings
-
----
-
-## Security considerations
-
-- All inputs are treated as attacker-controlled
-- Strict schema validation and normalization
-- No dynamic code execution
-- Redaction before any LLM interaction
-- Full decision trace for auditability
-
-The system is designed to be safe-by-default and fail-closed in high-risk stages.
-
----
-
-## MVP scope
-
-**Included in v1**
-- Trivy JSON ingestion
-- Deterministic risk scoring
-- Stage-aware decision matrix
-- Accepted Risk governance
-- File-based decision trace
-- Optional local LLM explanations
-
-**Out of scope for MVP**
-- Running scanners
-- CI system API integrations
-- Network-based services
-- Auto-remediation
-
----
-
-## Roadmap (non-binding)
-
-- Additional scanners (e.g. Gitleaks)
-- Additional domains (IAM, licenses, SBOM)
-- Pluggable report formats
-- Policy testing and simulation tools
-
----
-
-## Why not just gate on scanner severity?
-
-Because:
-- Severity is context-free
-- CI/CD is context-rich
-- Release risk is not the same as finding severity
-
-This project exists to bridge that gap in a way that is:
-- deterministic
-- explainable
-- auditable
-- governance-friendly
-
----
-
-## License and models
-
-- Project code and policies are intended to be **Apache 2.0 compatible**
-- Recommended LLMs are local, permissively licensed models
-- Full functionality is available with **LLM disabled**
-
----
-
-## Project philosophy
-
-AI Security Auditor is designed so that:
-- **policies decide**
-- **humans govern**
-- **AI explains**
-
-Nothing more, nothing less.
+security-gate is a **local, privacy-first DevSecOps control** that consumes security scanner outputs
+and converts them into **clear, deterministic CI/CD decisions**: **ALLOW / WARN / BLOCK**, with a
+full, auditable decision trace.
+
+Optional local LLM support (e.g., via Ollama) can generate **human-friendly explanations**, but
+**never influences decisions**.
+
+## Problem Statement
+Security scanners produce findings and severities. Release gates need **decisions** that consider
+stage, exposure, trust, provenance, and governance. Teams face:
+- High noise and inconsistent gating between repos
+- Severity-only decisions that ignore context
+- Suppressions that are permanent and unaudited
+- Untrusted inputs with unclear provenance
+
+**security-gate solves this by classifying releases, not findings.**
+
+## Key Principles
+- **Deterministic decisions**: same inputs always yield the same outcome.
+- **Decision trace**: every input, modifier, and rule evaluation is auditable.
+- **Stage-aware escalation**: pr, main, release, and prod use distinct gates.
+- **Privacy-first local execution**: no SaaS, no external APIs, no network dependency.
+- **Accepted Risk / Justification Workflow**: time-bound, approved exceptions with expiry.
+- **Provenance-aware trust**: trust_score influences release risk and gating.
+- **Optional, non-authoritative LLM**: explanation-only, never part of decision logic.
+
+## Conceptual Quickstart (No Commands)
+1) Produce scanner outputs (MVP: Trivy JSON) and store them locally.
+2) Provide a local context input with pipeline stage, exposure, and trust signals.
+3) Provide policy rules and any accepted risk records.
+4) Run security-gate to ingest, normalize, score, and decide.
+5) Consume decision.json, summary.md, and the exit code in your CI/CD stage.
+
+## Architecture Overview
+- **Ingest**: read local scanner outputs and hash inputs.
+- **Normalize**: convert to the unified finding schema.
+- **Score**: compute risk_score per finding and trust_score for provenance.
+- **Policy**: apply noise budget (pr only by default), exceptions, accepted risks, and
+  the stage decision matrix.
+- **Decision trace**: record a complete, ordered audit trail.
+- **Report**: emit decision.json and summary.md (optional HTML).
+- **LLM (optional)**: generate non-authoritative explanations from sanitized trace data.
+
+## Decision Model Summary
+- Findings are normalized and scored deterministically (risk_score 0-100).
+- Hard-stop domains (SECRET, MALWARE, PROVENANCE) always force BLOCK.
+- trust_score (0-100) is computed from provenance and build context signals.
+- release_risk = max(finding risk) + context modifiers (stage, exposure, change, trust).
+- Noise budget can reduce pr friction but never applies to hard-stop domains.
+- A stage-specific decision matrix produces ALLOW, WARN, or BLOCK.
+
+Stage identifiers are canonical tokens:
+| Legacy term | Canonical token |
+| --- | --- |
+| PR/feature | pr |
+| merge/main | main |
+| deploy-to-prod | prod |
+
+## High-Level Decision Matrix by Stage
+Hard-stop findings always force BLOCK.
+
+| Stage | ALLOW | WARN | BLOCK |
+| --- | --- | --- | --- |
+| pr | release_risk <= 45 and trust_score >= 20 | release_risk 46-70 or trust_score 10-19 | release_risk >= 71 or trust_score < 10 |
+| main | release_risk <= 35 and trust_score >= 30 | release_risk 36-60 or trust_score 20-29 | release_risk >= 61 or trust_score < 20 |
+| release | release_risk <= 30 and trust_score >= 40 | release_risk 31-50 or trust_score 30-39 | release_risk >= 51 or trust_score < 30 |
+| prod | release_risk <= 25 and trust_score >= 50 | release_risk 26-40 or trust_score 40-49 | release_risk >= 41 or trust_score < 40 |
+
+Default policy: WARN escalates to BLOCK in prod unless an approved accepted risk explicitly
+allows WARN in prod.
+
+## Outputs and Their Meaning
+- **decision.json (authoritative)**: full decision artifact with trace, scores, policy results,
+  and exit code.
+- **summary.md**: human-readable decision summary.
+- **Optional HTML report**: static report for local sharing.
+- **Exit codes**: 0=ALLOW, 1=WARN, 2=BLOCK.
+- **Optional LLM explanation**: non-authoritative text linked from decision.json.
+
+## Security Considerations
+- Inputs are untrusted; all scanner outputs are treated as attacker-controlled.
+- All inputs are hashed and recorded in the decision trace for auditability.
+- Redaction and minimization prevent secret leakage into reports or LLM prompts.
+- Prompt-injection awareness is mandatory for any LLM usage.
+- Safe defaults: missing or low-trust signals tighten gates, especially in prod.
+
+## MVP Scope vs Roadmap
+MVP:
+- Local-only execution.
+- Trivy JSON ingestion (file path and optional stdin).
+- Deterministic scoring, trust computation, and stage-aware decisions.
+- decision.json and summary.md outputs; optional local LLM explanations.
+
+Roadmap (non-exhaustive):
+- Additional scanners (e.g., Gitleaks) using the same unified schema.
+- Expanded policy rules and governance workflows.
+- Optional HTML report improvements.
+
+## License Considerations
+- Apache 2.0 is the preferred license.
+- LLM-off mode must remain fully functional and usable without any LLM dependency.
+
+## Why Scanner Severity ≠ Release Decision
+Scanner severity alone does not account for:
+- Stage-specific risk tolerance (pr vs prod)
+- Provenance and trust signals
+- Exposure and change context
+- Hard-stop domains that require immediate blocking
+- Governed exceptions and accepted risk with expiry
+
+security-gate combines these factors into a deterministic release decision.
+
+## Acceptance Criteria
+- [ ] Problem statement and core pain points are clear.
+- [ ] Key principles match deterministic, stage-aware, and provenance-aware goals.
+- [ ] Conceptual quickstart includes no real commands.
+- [ ] Architecture overview and decision model summary are consistent with the core engine.
+- [ ] Decision matrix by stage matches the authoritative thresholds.
+- [ ] Outputs, security considerations, MVP scope, roadmap, and license notes are included.
+- [ ] "Why severity ≠ release decision" is explicitly addressed.
