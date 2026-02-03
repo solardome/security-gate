@@ -1,7 +1,14 @@
 # Governance: Accepted Risk
 
+Authority Notice
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+
 This document defines the justification workflow for accepted risks. It is consistent
-with `docs/core-decision-engine.md` and `docs/policy-format.md`.
+with `docs/core-decision-engine.md` and `docs/policy-format.md`, which remain the
+authoritative sources for deterministic decision logic, escalation behavior, and
+suppression invariants. This document specifies **governance semantics only** (schema,
+validation, approvals, lifecycle) and MUST NOT override any normative rules in the
+core decision engine.
 
 ## Purpose
 - Provide a time-bound, approved mechanism to accept risk.
@@ -35,23 +42,22 @@ All fields are required unless marked optional.
 | status | enum | active, expired, revoked. |
 | audit | array (optional) | Append-only audit events. |
 
-Legacy-to-canonical mapping:
-| Legacy term | Canonical token |
-| --- | --- |
-| PR/feature | pr |
-| merge/main | main |
-| release | release |
-| deploy-to-prod | prod |
+Legacy-to-canonical mapping for stages is defined canonically in
+`docs/core-decision-engine.md` under **“Stage Enum (Canonical)”**. For convenience, this
+document uses the same canonical tokens (pr, main, release, prod) when describing
+`stage_scope`.
 
 ### finding_selector Keys
 All listed fields must match if present:
 - domain
 - cve_id
-- fingerprint
+- fingerprint (required for Accepted Risk; see below)
 - title_contains
 - location_contains
 - source_scanner
 - severity
+
+**Accepted Risk vs Exception selectors:** Accepted Risk finding_selector **must** include `fingerprint` for deterministic matching. Unlike policy exceptions (which may use domain, cve_id, title_contains, etc. without fingerprint for broad false-positive suppression), accepted risks require fingerprint so that suppression and prod WARN coverage are stable across runs. The `fingerprint` key must reference the canonical fingerprint described in `docs/core-decision-engine.md`, not the scanner-provided `finding_id`. Records that omit fingerprint are governance-invalid and ignored. Supplemental keys (domain, cve_id, etc.) may narrow the match but do not substitute for fingerprint.
 
 ## Validation Rules
 - stage_scope and environment_scope are mandatory and non-empty.
@@ -61,6 +67,29 @@ All listed fields must match if present:
 - allow_warn_in_prod must be explicitly true to allow WARN in prod.
 - finding_selector must be specific enough to avoid broad suppression.
 - finding_selector must target fingerprint for deterministic matching; other fields are supplemental.
+
+### Engine-Enforced Validation Behavior
+The deterministic engine MUST enforce the following behaviors when loading and
+evaluating accepted risk records:
+
+- **Parse/shape errors** (malformed JSON/YAML, missing required fields such as risk_id,
+  stage_scope, environment_scope, expires_at, or status outside the allowed enum) are
+  treated as **accepted risk parse/validation failures** and therefore as **fatal errors**
+  (see "Fatal Errors and Fail-Closed Defaults (Authoritative)" in `docs/modules.md`).
+  - For stage=main/release/prod: fatal error ⇒ BLOCK with minimal decision.json +
+    error metadata.
+  - For stage=pr: fatal error ⇒ WARN (exit_code=1) with low-trust defaults ONLY if
+    scanner input is present and hashable; otherwise BLOCK.
+- **Schema-valid but governance-invalid records** (for example, effects attempting to
+  suppress hard-stop domains, allow_warn_in_prod=true without required approvals, or
+  finding_selector that does not include a canonical fingerprint) MUST be:
+  - Ignored for gating and suppression behavior (never considered "active").
+  - Recorded in `decision_trace` as governance warnings, including the offending
+    risk_id and reason.
+- Records with **expires_at in the past** or `status=expired`/`status=revoked` at
+  evaluation time are never considered active for suppression or coverage, but still
+  participate in expiry-based escalation as defined in this document and in the
+  core decision engine.
 
 ## Approval Rules
 - All accepted risks require at least one approval.
@@ -83,6 +112,45 @@ Prod WARN outcomes escalate to BLOCK unless a valid Accepted Risk with `allow_wa
 - For release/prod stages, if an expired accepted risk would have covered a HIGH or
   CRITICAL finding, the decision is forced to BLOCK (per core escalation rules).
 - Expiry events are recorded in the decision trace.
+
+## Accepted Risk Lifecycle & Decision Influence (Summary)
+Lifecycle states:
+- **active**: `status=active`, current time is **before** `expires_at`, and the current `stage_scope` and `environment_scope` include the evaluation context. Only active records are considered by the engine for scoring suppression, WARN floors, prod WARN coverage, or `require_accepted_risk`.
+- **expired**: `now >= expires_at` or `status=expired`. Expired records are ignored for all gating and coverage decisions but still appear in governance warnings and audit trails (see **Expiry-Based Escalation**).
+- **revoked**: `status=revoked` (set manually by the owner). Revoked records are never considered active; they remain only as historical governance/audit evidence.
+
+An accepted risk is therefore considered **“active”** by the engine **only** when all of the following are true:
+- `status=active`
+- current UTC time `< expires_at`
+- current stage and environment are within `stage_scope` and `environment_scope`
+
+Detailed behavior is defined in **Precedence Rules**, **Prod WARN Coverage Requirements**, and **Expiry-Based Escalation** in this document, and in **Escalation Logic (Stage and Expiry)** and **Prod WARN Escalation and allow_warn_in_prod Coverage** in `docs/core-decision-engine.md`, plus **Deterministic Evaluation Order**, **Accepted Risk Objects (Justified Risk Acceptance)**, and **Precedence Rules** in `docs/policy-format.md`.
+
+| Stage  | Scoring suppression (effects)                                                                 | WARN floor (HIGH/CRITICAL coverage)                                             | Prod WARN coverage (allow_warn_in_prod)                                                                                  | Expiry escalation                                                                                           | Interaction with require_accepted_risk                                                        |
+| ------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| pr     | Active, in-scope records with `effects` containing `suppress_from_scoring` may remove non-hard-stop findings from the scoring set; expired/revoked records are ignored. | Any active, in-scope record covering at least one HIGH/CRITICAL finding enforces a final outcome of at least WARN. | Not applicable (prod-only behavior).                                                                                    | If an accepted risk that would have applied is expired, the final outcome is at least WARN.                | Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to WARN. |
+| main   | Same as pr: active, in-scope records may suppress non-hard-stop findings; expired/revoked are ignored. | Same WARN floor: active coverage of HIGH/CRITICAL enforces a final outcome of at least WARN. | Not applicable (prod-only behavior).                                                                                    | If an accepted risk that would have applied is expired, the final outcome is at least WARN.                | Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to BLOCK. |
+| release| Same suppression behavior: active, in-scope records may suppress non-hard-stop findings; expired/revoked are ignored. | Same WARN floor: active coverage of HIGH/CRITICAL enforces a final outcome of at least WARN. | Not applicable (prod-only behavior).                                                                                    | If an accepted risk that would have applied is expired, the final outcome is forced to BLOCK.              | Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to BLOCK. |
+| prod   | Same suppression behavior: active, in-scope records may suppress non-hard-stop findings; expired/revoked are ignored. | Same WARN floor: active coverage of HIGH/CRITICAL enforces a final outcome of at least WARN. | Active, in-scope records with `allow_warn_in_prod=true` can prevent WARN→BLOCK escalation **only** when they cover every `warn_causing_fingerprint`; partial coverage still escalates to BLOCK. | If an accepted risk that would have applied is expired, the final outcome is forced to BLOCK.              | Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to BLOCK. |
+
+## Status Lifecycle and Ownership
+Accepted risks begin in `status=active` and must transition to `expired` or `revoked` when appropriate. The lifecycle is enforced as follows; only item (1) below is part of the MVP engine behavior:
+
+1. **CLI validation per run (engine behavior, read-only):** Before scoring, the deterministic engine compares the current UTC timestamp with each accepted risk's `expires_at` and `status`. When `now >= expires_at` and `status` is still `active`, the engine treats the risk as expired **for this evaluation**, records a `decision_trace` event, and honors its governance rules as inactive. A similar check treats any `status=revoked` record as inactive immediately; `revoked` entries are never considered for `allow_warn_in_prod` or `suppress_from_scoring`. The engine MUST NOT modify or rewrite the accepted risk file; it derives effective status at runtime and reflects it only in decision artifacts and trace events.
+2. **Governance sweep and notifications (operational practice, out of MVP engine scope):** A periodic governance review (for example, a manual checklist or externally scheduled job owned by the `owner` field, usually a security or platform team) may re-scan the accepted risk file, reconcile `expires_at` against the recorded `status`, notify owners before expiry, and flag any inconsistencies for remediation. These sweeps and notifications are guidance for good governance hygiene and are **not** required or implemented by the CLI or core engine.
+3. **Manual updates and revocation (operational practice):** The risk `owner` is responsible for editing the record to set `status=revoked` when a mitigation is deployed or the justification changes. Every manual update must add a new `audit` event describing the action, actor, and timestamp so reviewers can trace the lifecycle. This is a governance responsibility and not automated by the MVP engine.
+
+Decision trace events surface these transitions so escalation logic can observe them in practice. Every status change (expiry or revocation) that the engine detects at evaluation time MUST emit a `decision_trace` event such as `accepted_risk.status_change` with at least:
+
+- `event_id`: unique identifier for the trace event.
+- `timestamp`: RFC3339 time of the transition.
+- `risk_id`: accepted risk identifier.
+- `status`: new status (`expired` or `revoked`).
+- `reason`: text like `expires_at reached` or `owner revoked`.
+- `matched_fingerprints`: list of canonical fingerprints that the risk had covered (bounded to 20 entries, consistent with governance events).
+- `stage_scope` / `environment_scope`: to show the contexts the risk applied to.
+
+These events feed the escalation rules so that, for example, a prod WARN → BLOCK escalation can see that `matched_fingerprints` no longer have an active accepted risk coverage and escalate accordingly.
 
 ## Audit Trail
 - audit is an append-only list of events with timestamp, actor, and action.

@@ -1,7 +1,13 @@
 # Policy Format
 
+Authority Notice
+This document describes the canonical policy schema while remaining non-authoritative for decision logic, evaluation order, and stage behavior, which are defined exclusively in docs/core-decision-engine.md; design intent lives in design/architecture.prompt.md. In conflicts, the schema documented here and those authoritative sources prevail and this document must not override or reinterpret them.
+
 This document defines the minimal policy-as-code format used by security-gate. It is
-deterministic, stage-aware, and consistent with `docs/core-decision-engine.md`.
+deterministic, stage-aware, and consistent with `docs/core-decision-engine.md`, which
+remains the **authoritative source** for scoring formulas, stage matrices, hard-stop
+conditions, noise budget guardrails, and suppression invariants. This document specifies
+how policy files *configure* that engine and MUST NOT redefine core decision logic.
 
 ## Purpose
 - Define rule structure and evaluation behavior.
@@ -14,7 +20,16 @@ deterministic, stage-aware, and consistent with `docs/core-decision-engine.md`.
 - All policies are local files; no network dependencies.
 - The base decision matrix and scoring model are fixed by
   `docs/core-decision-engine.md`. Policy rules may only **tighten** decisions; accepted risk handling follows Precedence Rules.
-- Noise budget configuration is limited to `stage=pr` in the MVP. Any policy that attempts to enable noise budgeting for `main`, `release`, or `prod` is treated as a fatal policy error for those stages; such policies must not be shipped with the MVP.
+- Noise budget configuration is limited to `stage=pr` in the MVP:
+  - When **no explicit noise_budget_top_k rule** is present for `stage=pr`, the engine
+    applies the default from the core decision engine (`top-5` non-hard-stop findings
+    from the scoring set).
+  - When an explicit `noise_budget_top_k` rule is present for `stage=pr`, that rule
+    overrides the default while still respecting deterministic ordering and suppression
+    invariants.
+  - Any policy that attempts to enable noise budgeting for `main`, `release`, or `prod`
+    is treated as a **policy parse/validation fatal error**; such policies MUST be
+    rejected by the engine and result in fail-closed behavior per `docs/modules.md`.
 
 ## Provenance & Signing Controls
 Policy requirements such as `requires_signed_artifact=true` or `requires_provenance_level>=L2` are enforced deterministically in two layers:
@@ -30,13 +45,17 @@ All policy rules observe a deterministic scoring set that excludes hard-stop fin
 - metadata: object (optional)
 
 ## Stage Enum (Canonical)
-Stages are represented by the following tokens:
+The canonical stage enum and legacy-to-canonical mapping are defined in
+`docs/core-decision-engine.md` under **“Stage Enum (Canonical)”** and MUST be treated as
+the single source of truth. For convenience when writing policies, stages are referenced
+by the canonical tokens:
 - pr
 - main
 - release
 - prod
 
-Legacy-to-canonical mapping:
+Examples of legacy-to-canonical mappings (non-normative reminder; if this table and the
+core engine ever differ, the core engine wins):
 | Legacy term | Canonical token |
 | --- | --- |
 | PR/feature | pr |
@@ -73,7 +92,11 @@ Supported condition keys:
 Actions must be deterministic and may only tighten decisions (see Precedence Rules for the accepted risk exception to warn_to_block).
 - decision: ALLOW | WARN | BLOCK (tightening only; never override hard-stop)
 - warn_to_block: boolean (explicitly enforce WARN -> BLOCK in scoped stages)
-- noise_budget_top_k: integer (pr only; enabling the field for other stages is a fatal policy error; applied at step 6 of Deterministic Evaluation Order)
+- noise_budget_top_k: integer (pr only; enabling the field for other stages is a fatal policy error; applied at step 6 of Deterministic Evaluation Order). When multiple `noise_budget_top_k` rules could apply to `stage=pr`, the engine MUST either:
+  - treat the configuration as invalid and fail policy validation. Engines MUST NOT
+    attempt to resolve conflicts by selecting a “most specific” rule; ambiguity is
+    always a policy error. Non-PR usage of `noise_budget_top_k` remains a fatal
+    policy error.
 - add_required_steps: array of deterministic step IDs (from core decision engine)
 - require_accepted_risk: object (requires a valid accepted risk for deterministically derived matched_fingerprints)
   - selector: object (required)
@@ -97,6 +120,8 @@ Enforcement (MVP):
 
 ## Exception Objects (False Positives)
 Exceptions suppress known false positives. They are always time-bound and scoped.
+
+**Exception vs Accepted Risk selectors:** Exceptions use `finding_selector` with keys such as domain, cve_id, title_contains, location_contains, source_scanner, severity. Exceptions may match **without** fingerprint—matching is evaluated at runtime by comparing selector fields to each finding; all present selector keys must match. This allows broad suppression of known false positives (e.g., by CVE or domain). Accepted Risks, by contrast, **must** include fingerprint in finding_selector for deterministic, stable matching (see `docs/governance-accepted-risk.md`). Exceptions and Accepted Risks are independent: an exception cannot reference an accepted risk, and vice versa.
 
 Required fields:
 - id: string (unique)
@@ -131,18 +156,7 @@ Rules:
 - Accepted risks may allow WARN in prod **only if** explicitly stated.
 
 ## Deterministic Evaluation Order
-The policy module observes the same canonical order defined in `docs/core-decision-engine.md` and must never imply a different sequence:
-1) Ingest, validate, and hash every decision-affecting input (scanner outputs, context, policy, accepted risks).
-2) Normalize inputs into the Unified Finding Schema and derive stable fingerprints.
-3) Detect hard-stop conditions (SECRET, MALWARE, PROVENANCE, UNKNOWN_DOMAIN_MAPPING, synthetic provenance findings); these findings are unsuppressible by definition.
-4) Apply governance: valid exceptions and Accepted Risks with `suppress_from_scoring` effects remove findings from the scoring set while each governance event records suppressed fingerprints/counts; expired/invalid accepted risks do not affect scoring (but still respect their escalation rules).
-5) Score only the remaining scoring set with the risk_score and trust modifiers outlined in the core engine.
-6) Apply the PR-only noise budget to the scored scoring set; hard-stop findings are excluded and any policy enabling noise budgeting for main/release/prod is a fatal error.
-7) Evaluate policy rules deterministically (selectors/tightening actions referencing the same ordering).
-8) Apply the stage matrix plus escalation logic (prod warn_to_block and allow_warn_in_prod coverage).
-9) Enforce governance floors (e.g., HIGH/CRITICAL-matching accepted risks mandate at least WARN).
-10) Emit `decision.json`, `decision_trace`, `summary.md`, and optional reports, ensuring suppressed findings remain visible with their suppression metadata.
-11) Optionally serve sanitized data to the non-authoritative LLM explanation layer.
+Evaluation order is defined canonically in `docs/core-decision-engine.md` under **“Canonical Deterministic Evaluation Order (Authoritative)”** and is not re-specified here.
 
 ## Deterministic Finding Ordering for Selectors and Noise Budget
 Selectors, selectors-driven suppressions (e.g., require_accepted_risk), and the PR-only noise budget must reuse a single stable ordering so that results stay deterministic. The canonical order is:
@@ -151,6 +165,9 @@ Selectors, selectors-driven suppressions (e.g., require_accepted_risk), and the 
 3. `severity` descending, using the fixed ranking `CRITICAL > HIGH > MEDIUM > LOW > INFO > UNKNOWN`.
 4. `fingerprint` lexicographically ascending as the final tie-breaker.
 `noise_budget_top_k` ranking applies these rules to the non-hard-stop scoring set. `selector=top_findings` selects the `top_n` entries by the same order, and `selector.type=all_high_or_critical` first filters to severity `{HIGH, CRITICAL}` before sorting by this order to derive `matched_fingerprints`.
+
+## Canonical Fingerprint Usage
+Selectors, noise budgets, warn coverage, and accepted risk enforcement MUST rely on the canonical `fingerprint` defined in `docs/core-decision-engine.md`. This field is calculated by concatenating the normalized key fields in the prescribed order (domain, normalized location, evidence reference, title, severity, scanner, scanner version, CVE if present, and the input hash) and hashing the result with SHA-256. The scanner-provided `finding_id` remains part of the output for traceability, but it is not used for deterministic gating or policy selectors. Every occurrence of `matched_fingerprints`, `suppressed_fingerprints`, `warn_causing_fingerprints`, or any accepted risk selector must match on these canonical values so that policy enforcement, noise budgeting, and governance references remain stable across runs and revisions.
 
 ## MVP vs v2: Noise Budget and Selectors
 - MVP: Noise budget configuration is limited to `stage=pr` only. Selectors or suppression logic that rely on `noise_budget_top_k` must respect the deterministic ordering above and must not be extended to main/release/prod in the MVP.

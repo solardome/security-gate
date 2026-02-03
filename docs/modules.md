@@ -1,5 +1,8 @@
 # Modules
 
+Authority Notice
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+
 This document specifies module responsibilities, interfaces, and operational constraints.
 It aligns with `docs/core-decision-engine.md` and remains implementation-agnostic.
 
@@ -37,6 +40,17 @@ Public Interfaces:
   - --report-html (optional)
   - --llm <on|off> (optional, default off)
 
+Stage precedence and recording:
+- The effective stage used for all gating and decision matrices is derived as follows:
+  - If `--stage` is provided, it is authoritative and overrides any
+    `context.payload.pipeline_stage` value.
+  - If `--stage` is not provided, `context.payload.pipeline_stage` is used.
+- `decision.json.inputs.context.payload.pipeline_stage` MUST reflect the **effective**
+  stage used for evaluation. If a conflicting stage was present in the original context
+  payload and overridden by `--stage`, the engine MUST record this in `decision_trace`
+  (for example, via a `context.stage_override` event with both values) so audits can
+  reconstruct the discrepancy.
+
 Error Handling:
 - Fatal errors follow "Fatal Errors and Fail-Closed Defaults (Authoritative)".
 - LLM failures never change the decision status.
@@ -48,7 +62,7 @@ Logging and Traceability:
 
 Security Considerations:
 - No network calls; local execution only.
-- Treats all inputs as untrusted and enforces size limits.
+- Treats all inputs as untrusted and enforces size limits. MVP limits: scanner input file size ≤ 50 MiB per file; total scanner input ≤ 100 MiB; policy file ≤ 1 MiB; accepted risk file ≤ 1 MiB; context file ≤ 256 KiB; max finding count per scan ≤ 10,000. Exceeding any limit is a fatal error (fail-closed per stage).
 
 ## ingest/trivy
 Purpose:
@@ -88,7 +102,7 @@ Error Handling:
 - Required fields must be populated; missing scan_timestamp uses ingest_time with timestamp_source=ingest, and input_sha256 must be computed at ingest.
 - Schema validation failure is a fatal error.
 - Cannot hash decision-affecting inputs is a fatal error.
-- If domain cannot be mapped, emit a synthetic hard-stop finding with title=UNKNOWN_DOMAIN_MAPPING, domain=CONFIG, severity=HIGH. Record the raw domain value in decision_trace. This finding is never suppressible and bypasses noise budget.
+- If domain cannot be mapped, emit the synthetic `UNKNOWN_DOMAIN_MAPPING` hard-stop condition as defined in `docs/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**, implemented as a normalized finding with `title=UNKNOWN_DOMAIN_MAPPING`, `domain=CONFIG`, and `severity=HIGH`. Record the raw domain value in decision_trace.
 
 Logging and Traceability:
 - Records normalization warnings and field substitutions in decision_trace.
@@ -137,8 +151,10 @@ Logging and Traceability:
 - Records evaluated rules, exceptions, noise budget effects, and stage matrix outcome.
 
 Security Considerations:
-- No policy rule can override hard-stop findings or conditions.
-- Hard-stop domains tracked by the core spec are SECRET, MALWARE, PROVENANCE (including signing/provenance synthetic findings), and UNKNOWN_DOMAIN_MAPPING; they bypass noise budget, cannot be suppressed, and always force BLOCK.
+- No policy rule can override hard-stop conditions.
+- The exhaustive set of hard-stop conditions is defined authoritatively in
+  `docs/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**; all of
+  these conditions bypass noise budget, cannot be suppressed, and always force BLOCK.
 
 ## decision_trace
 Purpose:
@@ -173,11 +189,19 @@ Public Interfaces:
 - Accepts a repo-local accepted risk file and returns applicable records.
 
 Error Handling:
-- Accepted risk parse/validation failure is a fatal error.
-- Expired Accepted Risks are treated as INVALID (ignored for governance effects and gating).
+- Accepted risk parse/shape/validation failure (malformed file, missing required fields,
+  invalid enum values) is a fatal error and follows "Fatal Errors and Fail-Closed Defaults
+  (Authoritative)" above.
+- Records that are schema-valid but **governance-invalid** (for example, attempting to
+  apply effects to hard-stop domains, omitting a canonical fingerprint in
+  finding_selector, or declaring allow_warn_in_prod=true without required approvals)
+  MUST be ignored for suppression and coverage purposes, but recorded as governance
+  warnings in `decision_trace` with risk_id and reason.
+- Expired Accepted Risks are treated as INVALID for governance effects and gating (never
+  considered active for suppression or prod WARN coverage).
 - Additionally, expiry escalation is enforced deterministically:
   - stage=pr/main: if an expired Accepted Risk would have matched a HIGH/CRITICAL finding, the final outcome is at least WARN (do not silently ignore; record governance.expired).
-  - stage=release/prod: if an expired Accepted Risk would have matched a HIGH/CRITICAL finding, the final outcome is BLOCK (fail-closed), even if other factors would allow WARN/ALLOW.
+  - stage=release/prod: if an expired Accepted Risk would have matched a HIGH/CRITICAL finding, the final outcome is BLOCK (fail-closed), even if other factors would allow WARN/ALLOW).
 - Expired Accepted Risks never apply to hard-stop findings or conditions (unchanged).
 
 Logging and Traceability:

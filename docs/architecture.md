@@ -1,5 +1,8 @@
 # Architecture
 
+Authority Notice
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+
 This document defines the system architecture for security-gate. It is consistent with
 `docs/core-decision-engine.md` and focuses on components, data flow, trust/provenance,
 and safe defaults. It avoids implementation details.
@@ -68,16 +71,7 @@ and safe defaults. It avoids implementation details.
 - llm consumes sanitized trace data and produces non-authoritative text only.
 
 ## Data Flow (Authoritative)
-1) Ingest scanner outputs (files or stdin) and compute SHA-256 hashes for **all** decision-affecting inputs (scanner outputs, context, policy, accepted risks).
-2) Normalize all parsed findings into the unified finding schema (required fields enforced; substitutions are explicit and traced).
-3) Detect hard-stop conditions and emit any synthetic hard-stop findings (SECRET, MALWARE, PROVENANCE hard-stops, UNKNOWN_DOMAIN_MAPPING). Hard-stops are unsuppressible, bypass noise budget, and force BLOCK.
-4) Apply governance to produce the **scoring set**:
-   - apply valid exceptions and Accepted Risks with `suppress_from_scoring`
-   - record suppressed fingerprints and counts in the decision trace and reports
-5) Score **only** the scoring set (per-finding `risk_score`) and compute global `trust_score` from provenance/trust signals.
-6) Apply the **PR-only** noise budget *after scoring* to the scored scoring set (hard-stops excluded by definition); any attempt to enable noise budgeting for main/release/prod is invalid in MVP.
-7) Apply policy tightening and the stage decision matrix to derive ALLOW/WARN/BLOCK and exit code (including prod WARN→BLOCK escalation rules and allow-warn coverage rules).
-8) Emit decision artifacts (decision.json, summary.md, optional HTML) including full decision trace and input hashes; optionally generate LLM explanation text from sanitized trace data (non-authoritative).
+At a high level, data flows from ingest → normalize → score → policy → decision_trace → report, with optional LLM explanation consuming sanitized trace data. Evaluation order for governance, scoring, noise budget, policy, and decision matrix is defined canonically in `docs/core-decision-engine.md` under **“Canonical Deterministic Evaluation Order (Authoritative)”** and is not re-specified here.
 
 ## Deterministic vs AI Boundary
 - Deterministic boundary includes ingest, normalize, score, policy, and decision_trace.
@@ -97,9 +91,16 @@ and safe defaults. It avoids implementation details.
   - Trust penalties only apply when the policy does not require the evidence (e.g., unsigned/unknown signatures or provenance_level=unknown without a minimum requirement).
   - Deterministic evaluation always resolves these provenance hard stops before risk scoring and noise budgeting so that provenance failures block regardless of numeric scores.
 
+## Stage Enum (Canonical)
+The canonical stage enum and legacy-to-canonical mapping are defined in
+`docs/core-decision-engine.md` under **“Stage Enum (Canonical)”** and are the single source
+of truth. Informally for architecture discussions: stages are `pr`, `main`, `release`,
+and `prod` (with legacy terms like PR/feature, merge/main, and deploy-to-prod mapping to
+those canonical tokens).
+
 ## Failure Modes and Safe Defaults
-- Hard-stop domains include SECRET, MALWARE, PROVENANCE (including the signed/provenance failure synthetic findings the core spec defines) and UNKNOWN_DOMAIN_MAPPING.
-- These hard-stop findings are never suppressible, bypass noise budgets, and always force BLOCK regardless of releases risk or trust.
+- Hard-stop conditions are defined authoritatively in `docs/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**.
+- These hard-stop conditions are never suppressible, bypass noise budgets, and always force BLOCK regardless of release risk or trust.
 - input_sha256 is mandatory and computed at ingest; if it cannot be computed, the decision is fail-closed for stage=main, release, and prod. For stage=pr, proceed only with a recorded warning and low-trust defaults.
 - scan_timestamp must be present; if missing from scanner output, substitute ingest_time and record timestamp_source=ingest.
 - pr may produce WARN for partial data only when trust_score remains above the lowest bucket and no hard-stop exists.

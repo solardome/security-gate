@@ -1,5 +1,8 @@
 # LLM Boundary
 
+Authority Notice
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+
 This document specifies the boundary between deterministic decision logic and optional
 LLM-based explanation. It is consistent with `docs/core-decision-engine.md`.
 

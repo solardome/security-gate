@@ -1,5 +1,8 @@
 # security-gate
 
+Authority Notice
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+
 **Deterministic, stage-aware release decisions for CI/CD — not just scanner severities.**
 
 security-gate is a **local, privacy-first DevSecOps control** that consumes security scanner outputs
@@ -46,14 +49,21 @@ stage, exposure, trust, provenance, and governance. Teams face:
 - **Decision trace**: record a complete, ordered audit trail.
 - **Report**: emit decision.json and summary.md (optional HTML).
 - **LLM (optional)**: generate non-authoritative explanations from sanitized trace data.
+- Evaluation order for governance, scoring, noise budget, policy, and the stage decision matrix is defined canonically in `docs/core-decision-engine.md` under **“Canonical Deterministic Evaluation Order (Authoritative)”** and is not re-specified here.
 
 ## Decision Model Summary
 - Findings are normalized and scored deterministically (risk_score 0-100).
-- Hard-stop domains include SECRET, MALWARE, PROVENANCE (including the explicit signing/provenance hard-stop findings defined in `docs/core-decision-engine.md`), and the synthetic UNKNOWN_DOMAIN_MAPPING.
-- Hard-stop findings are never suppressible, bypass noise budget, and always force BLOCK regardless of other signals.
+- Hard-stop behavior is defined canonically in `docs/core-decision-engine.md` under
+  **“Hard-Stop Conditions (Authoritative)”**. Examples include SECRET, MALWARE, specific
+  synthetic PROVENANCE violations, and the synthetic UNKNOWN_DOMAIN_MAPPING condition.
+- Hard-stop findings are never suppressible, bypass noise budget, and always force BLOCK
+  regardless of other signals.
 - trust_score (0-100) is computed from provenance and build context signals.
 - release_risk = max(finding risk) + context modifiers (stage, exposure, change, trust).
-- Noise budget can reduce pr friction but never applies to hard-stop domains.
+- Noise budget can reduce pr friction but never applies to hard-stop domains and is
+  strictly PR-only in the MVP; any attempt to enable a noise budget on main/release/prod
+  is treated as a fatal policy error and results in fail-closed behavior (see
+  `docs/core-decision-engine.md` and `docs/policy-format.md`).
 - A stage-specific decision matrix produces ALLOW, WARN, or BLOCK.
 - `allow_warn_in_prod` only avoids WARN→BLOCK when every warn-causing fingerprint is covered; partial coverage still results in BLOCK.
 
@@ -61,11 +71,13 @@ stage, exposure, trust, provenance, and governance. Teams face:
 - Explicit provenance/signing hard stops emit synthetic findings (`domain=PROVENANCE`, `hard_stop=true`, `risk_score=100`) for invalid signatures, provenance mismatches, unsigned artifacts when signing is required, or insufficient provenance level. These synthetic findings are evaluated ahead of scoring and noise budgeting and always block, regardless of trust_score or release_risk.
 - Trust penalties only adjust `trust_score` when optional provenance signals are missing (unsigned/unknown signatures or unknown provenance level when the policy does not demand them). Unsigned artifacts are therefore not automatically a minor penalty—only when the policy does not enforce the evidence. The canonical hard-stop tokens are `PROVENANCE_INVALID_SIGNATURE`, `PROVENANCE_MISMATCH`, `PROVENANCE_UNSIGNED_ARTIFACT`, and `PROVENANCE_INSUFFICIENT_LEVEL`.
 
-Stage identifiers are canonical tokens:
+Stage identifiers are canonical tokens defined in `docs/core-decision-engine.md`
+(`Stage Enum (Canonical)`). Informally:
 | Legacy term | Canonical token |
 | --- | --- |
 | PR/feature | pr |
 | merge/main | main |
+| release | release |
 | deploy-to-prod | prod |
 
 ## High-Level Decision Matrix by Stage

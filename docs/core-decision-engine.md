@@ -2,7 +2,12 @@
 
 Authoritative specification for the deterministic decision engine. This document defines
 normalized inputs, scoring, trust, gating, and outputs. It must be internally consistent
-and implementation-agnostic.
+and implementation-agnostic, and is the **single source of truth** for all normative
+decision logic (hard-stop conditions, risk and trust formulas, stage matrices, noise
+budget semantics, suppression behavior, and provenance handling). Other documents
+(`README.md`, `docs/architecture.md`, `docs/modules.md`, `docs/policy-format.md`,
+`docs/governance-accepted-risk.md`, `docs/llm-boundary.md`) may summarize this logic
+for readability but MUST NOT redefine or partially override it.
 
 ## Purpose and Scope
 - Convert scanner findings into deterministic, stage-aware CI/CD decisions: ALLOW, WARN, BLOCK.
@@ -31,6 +36,36 @@ and implementation-agnostic.
   - scanner_version pinning, scan_timestamp, artifact signing/provenance signals
 - Policy-as-code rules and accepted risk objects.
 
+## Context Input Schema (Authoritative)
+The canonical context input is a single JSON object whose `payload` field is used by the
+engine. Implementations MAY accept equivalent structures, but MUST normalize them into
+this schema before evaluation.
+
+Required fields in `context.payload`:
+- `pipeline_stage`: enum (pr, main, release, prod). This is the **declared** stage; the
+  effective stage used for gating may be overridden by the CLI `--stage` flag (see
+  **Stage Precedence: CLI vs Context** below).
+- `environment`: string (e.g., dev, staging, prod). Used for accepted risk scope checks.
+- `exposure`: enum (public, internal, private, unknown).
+- `change_type`: enum (high_risk, moderate, low, unknown).
+
+Optional fields in `context.payload` (MVP):
+- `branch_type`: string/enum (implementation-defined; used only as an input to
+  `build_context_trust`).
+- `repo_criticality`: enum (low, medium, high, unknown). Record-only in MVP.
+- `artifact_signing_status`: enum (verified, unsigned, invalid, unknown).
+- `provenance_level`: enum (level3+, level2, level1, none, unknown).
+- `branch_protected`: boolean (used to derive `build_context_trust` when present).
+- `scanner_version`: string (used to evaluate `scanner_pinned`).
+
+Context loaders MUST:
+- Validate that `pipeline_stage` is one of the canonical tokens or fail validation.
+- Default missing optional fields into the “unknown” buckets described in the trust score
+  table rather than inventing new enums or semantics.
+Other documents (for example, `docs/architecture.md`, `docs/modules.md`, and
+`docs/policy-format.md`) MUST treat this section as the single source of truth for the
+context payload shape and refer to it rather than re-stating field lists.
+
 ## Stage Enum (Canonical)
 Stages are represented by the following tokens:
 - pr
@@ -51,7 +86,8 @@ All scanner outputs MUST be normalized into this schema before scoring.
 ### Required Fields
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| finding_id | string | yes | Stable deterministic ID (hash of key fields). |
+| finding_id | string | yes | Stable deterministic ID (hash of key fields) supplied by the scanner; canonical `fingerprint` (below) is used for gating and tracing. |
+| fingerprint | string | yes | Canonical deterministic hash of normalized key fields (see derivation below); used by selectors, noise budgets, accepted risks, warn coverage, and decision-trace metadata. |
 | domain | enum | yes | VULNERABILITY, SECRET, MALWARE, LICENSE, CONFIG, PROVENANCE. |
 | severity | enum | yes | CRITICAL, HIGH, MEDIUM, LOW, INFO, UNKNOWN. |
 | title | string | yes | Short, human-readable label. |
@@ -92,6 +128,23 @@ Mandatory handling rules:
 Optional with safe defaults:
 - cve_id, cvss_v3, fix_available, fix_version, exploit_maturity, reachability, dependency_scope, license_type, confidence, tags, vendor_status, remediation_hint.
 - Missing optional fields are treated as unknown and handled per risk scoring modifiers.
+
+### Canonical Fingerprint Derivation
+Normalized findings MUST include `fingerprint`. It is derived by concatenating the following normalized fields in this exact order, separated by the pipe (`|`) character, lowercased, and trimmed:
+
+1. `domain`
+2. `location.path` (or the most specific location identity available, such as `location.package` or `location.target`)
+3. `evidence_ref`
+4. `title`
+5. `severity`
+6. `source_scanner`
+7. `source_version`
+8. `cve_id` (use empty string when absent)
+9. `input_sha256`
+
+Hash the resulting string with SHA-256 and encode it as a lowercase hex string. This canonical fingerprint differs from `finding_id` in that `finding_id` tracks the original scanner detection, whereas `fingerprint` stabilizes deterministic consumers such as selectors, noise budgets, accepted risks, warn_causing sets, and every decision_trace event that references findings.
+
+`fingerprint` MUST be recorded in `decision.findings.items` and echo the same value in any `decision_trace` event that lists suppressed, matched, or warn-causing entries, including governance events and `policy.require_accepted_risk.missing`.
 
 ### Enumerations (Canonical)
 - domain: VULNERABILITY, SECRET, MALWARE, LICENSE, CONFIG, PROVENANCE
@@ -185,6 +238,20 @@ Trust is a first-class input to policy evaluation and release risk.
 - trust_score = round(sum(weight * signal_score))
 - Result is clamped to 0-100.
 
+### Trust Signal Input Mapping (MVP)
+The following context.json and scanner metadata fields supply each trust signal. Implementations MUST use this mapping; ad hoc mappings are not permitted.
+
+| Signal | Source | Field or Condition | Value Mapping |
+| --- | --- | --- | --- |
+| scanner_pinned | context.payload | scanner_version present and matches scan metadata | present+match=1.0, absent/mismatch/unknown=0.2 |
+| scan_freshness | scan metadata | scan_timestamp age vs now | <=24h=1.0, <=7d=0.7, <=30d=0.4, >30d/unknown=0.2 |
+| input_integrity | ingest | input_sha256 computed and recorded | computed=1.0, missing=0.2, mismatch=0.0 |
+| artifact_signing | context.payload | artifact_signing_status | verified=1.0, unsigned/unknown=0.2, invalid=0.0 |
+| provenance_level | context.payload | provenance_level | level3+=1.0, level2=0.7, level1=0.4, none/unknown=0.2 |
+| build_context_trust | context.payload | branch_type or branch_protected | protected=1.0, unprotected/unknown=0.3 |
+
+When a field is absent from context.json or scan metadata, the signal defaults to the unknown/low bucket (0.2 for scanner_pinned, scan_freshness, input_integrity, artifact_signing, provenance_level; 0.3 for build_context_trust). The context.payload schema is defined by the context input format; optional fields may be omitted and trigger the default.
+
 ### Trust Usage
 - trust_score is added to decision.json and is addressable in policy rules.
 - trust_score contributes to release_risk via a trust modifier (see Section 4).
@@ -227,10 +294,10 @@ Release risk is computed over the **scoring set** (after governance suppressions
 5) Apply the stage decision matrix and escalation logic to derive ALLOW/WARN/BLOCK and exit code.
 6) Emit `decision.json` and the ordered `decision_trace`, including hashes for all decision-affecting inputs and visibility of suppressed findings.
 
-## Deterministic Evaluation Order
+## Canonical Deterministic Evaluation Order (Authoritative)
 1) Ingest, validate, and hash every decision-affecting input (scanner outputs, context, policy, accepted risks); fatal errors follow the prescribed fail-closed behavior for each stage.
 2) Normalize inputs into the Unified Finding Schema and derive stable fingerprints for each finding.
-3) Detect hard-stop conditions (e.g., SECRET, MALWARE, PROVENANCE, UNKNOWN_DOMAIN_MAPPING, synthetic provenance findings); these findings bypass governance and noise budget steps and always force BLOCK.
+3) Detect hard-stop conditions (see **Hard-Stop Conditions (Authoritative)** below); these findings bypass governance and noise budget steps and always force BLOCK.
 4) Apply governance: valid exceptions and Accepted Risks with `suppress_from_scoring` effects remove findings from the scoring set, while each governance event records the suppressed fingerprints and counts in the trace/report. Expired or invalid accepted risks do not contribute to scoring (although their expiry escalation rules still apply).
 5) Score only the remaining scoring set, computing per-finding risk_score and the trust modifiers defined in Section 3.
 6) Apply the PR-only noise budget to the scored scoring set (hard-stop findings are excluded by definition); any noise budget configuration targeting main/release/prod is a fatal policy error.
@@ -241,6 +308,34 @@ Release risk is computed over the **scoring set** (after governance suppressions
 11) Optionally generate an LLM explanation artifact using sanitized, non-authoritative inputs derived from the finalized trace.
 
 Suppressed findings continue to appear in `decision.findings.items` with their suppression flags, and every governance event (exception, accepted risk) records the bounded fingerprint list and suppressed count so the audit trail remains complete even though those findings no longer feed into scoring.
+
+## Hard-Stop Conditions (Authoritative)
+Hard-stop behavior is **condition-based**, not purely domain-based. The engine inspects
+normalized findings and synthetic conditions, and then marks specific findings as
+`hard_stop=true`. Domains are an input into these conditions, but domain alone is
+insufficient: some domains (for example, PROVENANCE) may emit both hard-stop and
+non-hard-stop findings depending on the triggering condition.
+
+The following hard-stop conditions are authoritative and exhaustive:
+
+| Hard-stop condition | Type | Domain | Severity (normalized) | Notes |
+| --- | --- | --- | --- | --- |
+| SECRET finding | domain-based | SECRET | As provided by the scanner/normalization; hard-stop behavior is independent of severity. | Any normalized finding with `domain=SECRET` is treated as a hard-stop condition. |
+| MALWARE finding | domain-based | MALWARE | As provided by the scanner/normalization; hard-stop behavior is independent of severity. | Any normalized finding with `domain=MALWARE` is treated as a hard-stop condition. |
+| Synthetic provenance violation | synthetic | PROVENANCE | CRITICAL | Synthetic findings emitted by the provenance/signing hard-stop layer, including `PROVENANCE_INVALID_SIGNATURE`, `PROVENANCE_MISMATCH`, `PROVENANCE_UNSIGNED_ARTIFACT`, and `PROVENANCE_INSUFFICIENT_LEVEL`. These are emitted only when deterministic provenance or signing requirements are violated. |
+| UNKNOWN_DOMAIN_MAPPING | synthetic | CONFIG | HIGH | Synthetic finding emitted when a source scanner domain cannot be mapped into the canonical `domain` enumeration. Implemented as a normalized finding with `title=UNKNOWN_DOMAIN_MAPPING`. |
+
+For all hard-stop conditions above, the following invariants apply:
+
+- Hard-stop conditions are **unsuppressible**: exceptions and Accepted Risks MUST NOT remove them from the scoring set or downgrade their effect.
+- Hard-stop conditions **bypass the noise budget**: they are never excluded or down-ranked by PR-only noise budgeting.
+- Hard-stop conditions **always result in BLOCK** at every stage (pr, main, release, prod), regardless of `risk_score`, `release_risk`, `trust_score`, or policy rules.
+- Hard-stop findings MUST still be represented in `decision.findings.items` with `risk_score=100` and `hard_stop=true`, and MUST contribute to `hard_stop_count`.
+
+Engines and policies MUST treat this section as the single source of truth for which
+conditions are hard-stops and how they behave. Module- and policy-level documents may
+describe how a given hard-stop condition is detected or surfaced, but MUST NOT redefine
+or partially re-list hard-stop conditions.
 
 ## 5) Explicit Decision Matrices by Stage
 Hard-stop findings always force BLOCK regardless of numeric scores.
@@ -281,6 +376,54 @@ The **warn_causing_fingerprints** are the fingerprints of that set. Escalation t
   - pr/main: expired accepted risk adds WARN in decision trace.
   - release/prod: expired accepted risk forces BLOCK if it covers a HIGH or CRITICAL finding.
 
+## Governance and Escalation Summary (Non-Numeric Tightening)
+This section summarizes all non-numeric mechanisms that can tighten a decision after
+`release_risk` and the stage decision matrices have been computed. It is a reading aid;
+the normative behavior is defined in the sections referenced below.
+
+- **Hard-stop conditions (Section "Hard-Stop Conditions (Authoritative)")**
+  - Any hard-stop finding always forces `decision.status=BLOCK` and `exit_code=2` at all
+    stages, regardless of `release_risk`, `trust_score`, or policy rules.
+  - Hard-stops are never suppressible, never subject to noise budget, and take precedence
+    over all other governance or policy mechanisms.
+
+- **Governance WARN floor (Sections "False Positives, Exceptions, Accepted Risk Governance"
+  and `docs/governance-accepted-risk.md`)**
+  - When a valid Accepted Risk record actively covers at least one HIGH/CRITICAL,
+    non-hard-stop finding in the current stage/environment, the final decision MUST be at
+    least WARN, even if numeric thresholds would otherwise allow ALLOW.
+
+- **Prod WARN→BLOCK escalation and allow_warn_in_prod coverage (Section
+  "Prod WARN Escalation and allow_warn_in_prod Coverage")**
+  - At stage=prod, a WARN outcome from the stage matrix is escalated to BLOCK unless every
+    `warn_causing_fingerprint` is covered by an active Accepted Risk with
+    `allow_warn_in_prod=true`.
+  - Partial coverage (some but not all warn-causing fingerprints) is insufficient; BLOCK
+    remains.
+
+- **Expiry-based escalation (this section and `docs/governance-accepted-risk.md`)**
+  - Expired or revoked Accepted Risks are never treated as active for suppression or prod
+    WARN coverage.
+  - Nevertheless, if such a record would have covered a HIGH/CRITICAL finding:
+    - pr/main: the final decision is tightened to at least WARN.
+    - release/prod: the final decision is forced to BLOCK.
+
+- **require_accepted_risk gates (Section "Noise Budget Mechanism (Guardrails)" and
+  `docs/policy-format.md`)**
+  - When a policy rule with `require_accepted_risk` matches and there is no active,
+    in-scope Accepted Risk covering every required fingerprint:
+    - pr: the outcome is tightened to at least WARN.
+    - main/release/prod: the outcome is tightened to at least BLOCK.
+
+- **Fatal errors and fail-closed behavior (`docs/modules.md`)**
+  - For stage=main/release/prod, any fatal ingest/normalize/score/policy/accepted-risk
+    error forces BLOCK with a minimal decision artifact.
+  - For stage=pr, fatal errors produce WARN (with low-trust defaults) only when scanner
+    input is present and hashable; otherwise they also result in BLOCK.
+
+These mechanisms are cumulative and always tighten or maintain the severity of an outcome;
+none of them can weaken a BLOCK that is already mandated by hard-stops or numeric gating.
+
 ## Precedence Rules
 - Policy rules are tighten-only except that an explicitly approved Accepted Risk may prevent warn_to_block escalation for its scoped findings when allow_warn_in_prod=true.
 - Accepted Risk never overrides hard-stop domains (SECRET, MALWARE, PROVENANCE) and never overrides provenance/signing hard-stops.
@@ -293,7 +436,7 @@ All selection or ranking of findings must follow a stable total order so that to
 2. `risk_score` descending.
 3. `severity` descending, with the fixed ranking `CRITICAL > HIGH > MEDIUM > LOW > INFO > UNKNOWN`.
 4. `fingerprint` lexicographically ascending as the final tie-breaker.
-Noise budget ranking applies this order to the non-hard-stop scoring set. `global selector.type=top_findings` uses the same stable order to pick `top_n` entries, and `selector.type=all_high_or_critical` filters to `severity` in `{HIGH, CRITICAL}` before sorting by this order to derive matched_fingerprints.
+Noise budget ranking applies this order to the non-hard-stop scoring set. `global selector.type=top_findings` uses the same stable order to pick `top_n` entries, and `selector.type=all_high_or_critical` filters to `severity` in `{HIGH, CRITICAL}` before sorting by this order to derive matched_fingerprints. Because every `fingerprint` follows the canonical derivation above, these tie-breakers reproduce the same identifiers that appear in `decision.findings.items` and the governance events that consume them.
 
 ## 7) Noise Budget Mechanism (Guardrails)
 Purpose: reduce pr friction only. Noise budget MUST NOT apply to hard-stop domains.
@@ -315,7 +458,84 @@ Rules:
 - Neither exceptions nor accepted risks can suppress hard-stop domains.
 - Accepted risks must be reviewed on expiry; expired items trigger escalation (Section 6).
 
-## 9) decision.json Schema (Authoritative)
+## 9) Suppression and Decision Trace Invariants (Authoritative)
+This section defines the canonical behavior for any mechanism that removes findings from
+the scoring set (exceptions, accepted risks, PR-only noise budget) and how those actions
+are reflected in `decision.json` and `decision_trace`.
+
+### Suppression Semantics
+- Suppression is **logical only**: suppressed findings remain present in
+  `decision.findings.items` and in the trace; they are excluded only from scoring sets.
+- Hard-stop conditions are **never suppressible** and **never subject to noise budget**.
+- Exceptions and accepted risks may only suppress **non-hard-stop** findings.
+- PR-only noise budget may only suppress non-hard-stop findings for `stage=pr` and never
+  for `main`, `release`, or `prod`. Any attempt to enable a noise budget outside `pr`
+  is a fatal policy error (see **Fatal Errors and Fail-Closed Defaults (Authoritative)** in
+  `docs/modules.md`).
+
+### Suppression Precedence (Authoritative)
+When multiple suppression mechanisms could apply to the same non-hard-stop finding
+within a single evaluation pass, the engine MUST apply the following precedence order
+and set only one suppression flag on the finding:
+
+1. Accepted risk (governance-driven, time-bound justification)
+2. Exception (false-positive focused)
+3. PR-only noise budget
+
+Concretely:
+- If an active, in-scope Accepted Risk with an effect that suppresses scoring matches a
+  finding, the finding is marked `suppressed_by_accepted_risk=true` and MUST NOT also be
+  marked as suppressed by an exception or the noise budget, even if those mechanisms
+  would otherwise match.
+- If no Accepted Risk applies but a valid exception matches, the finding is marked
+  `suppressed_by_exception=true` and MUST NOT also be marked as suppressed by the noise
+  budget.
+- Only findings that are not covered by either Accepted Risks or exceptions may be
+  suppressed by the PR-only noise budget, in which case they are marked
+  `suppressed_by_noise_budget=true`.
+
+Decision_trace events MUST remain aligned with this precedence:
+- A given finding’s fingerprint MUST appear under `suppressed_fingerprints` in exactly
+  one of `governance.applied` (accepted risk), `exception.applied`, or
+  `noise_budget.applied` for a single evaluation, matching its chosen suppression flag.
+- Policy and governance documents MUST NOT redefine this precedence order; if they
+  describe suppression, they MUST reference this section.
+
+### Per-Finding Flags
+- Every normalized finding in `decision.findings.items` MUST expose:
+  - `suppressed_by_accepted_risk: boolean`
+  - `suppressed_by_exception: boolean`
+  - `suppressed_by_noise_budget: boolean`
+- At most one of these flags should be true for any given suppression mechanism in a
+  single evaluation pass; if multiple mechanisms could apply, governance MUST define and
+  document precedence but still keep only one suppression cause per finding.
+
+### Trace Events and Fingerprint Alignment
+- For every suppression-producing mechanism, the engine MUST emit a corresponding
+  `decision_trace` event:
+  - `governance.applied` (accepted risks)
+  - `exception.applied` (exceptions)
+  - `noise_budget.applied` (PR-only noise budget)
+- Each such event MUST include:
+  - `suppressed_fingerprints`: array<string> of canonical fingerprints, bounded to the
+    first 20 entries.
+  - `suppressed_count`: total number of suppressed fingerprints (may exceed the bounded
+    list length).
+  - `suppressed_by`: string describing the source (`accepted_risk`, `exception`,
+    `noise_budget`).
+- The `suppressed_fingerprints` in trace events MUST match the `fingerprint` values of
+  findings whose corresponding `suppressed_by_*` flag is true in `decision.findings.items`.
+  This alignment is mandatory for auditability and for downstream tooling to reconcile
+  per-finding state with governance events.
+
+### Governance Floors and Expiry
+- Accepted risks that cover HIGH/CRITICAL findings may impose a WARN floor or influence
+  prod WARN coverage, but they **never** change the suppression invariants above.
+- Expired or revoked accepted risks are **never** treated as active for suppression or
+  WARN-coverage decisions; they are reflected only via governance warnings and
+  expiry-based escalation (Section 6).
+
+## 10) decision.json Schema (Authoritative)
 The engine MUST output decision.json with the following structure:
 
 - schema_version: string
@@ -345,6 +565,8 @@ The engine MUST output decision.json with the following structure:
   - suppressed_by_noise_budget: number
   - max_finding_risk: number
   - items: array of normalized findings with computed risk_score and hard_stop flag
+    - finding_id: string
+    - fingerprint: string
     - suppressed_by_accepted_risk: boolean
     - suppressed_by_exception: boolean
     - suppressed_by_noise_budget: boolean
@@ -367,16 +589,51 @@ The engine MUST output decision.json with the following structure:
 - decision_trace:
   - array of ordered trace events (ingest, normalize, score, policy, decision)
     - governance.applied, exception.applied, and noise_budget.applied events MUST emit:
-      - `suppressed_fingerprints`: array<string> (bounded to first 20 entries) listing the fingerprints suppressed in this step.
-      - `suppressed_count`: number of total suppressed fingerprints (may exceed the bounded list length).
-      - `suppressed_by`: string (e.g., `accepted_risk`, `exception`, `noise_budget`) describing the suppression source.
-    - These fields ensure every suppressed finding is auditable; the contained fingerprints must correspond to `decision.findings.items` where the matching `suppressed_by_*` boolean is true.
+    - `suppressed_fingerprints`: array<string> (bounded to first 20 entries) listing the canonical fingerprints suppressed in this step.
+    - `suppressed_count`: number of total suppressed fingerprints (may exceed the bounded list length).
+    - `suppressed_by`: string (e.g., `accepted_risk`, `exception`, `noise_budget`) describing the suppression source.
+    - These fields ensure every suppressed finding is auditable; the contained fingerprints must match the `fingerprint` recorded in `decision.findings.items` for the suppressed findings.
+  - Redaction metadata for LLM inputs MUST be recorded in a `redaction.events` array inside the decision_trace with objects containing at least:
+    - `event_id`: string (unique identifier for the redaction action).
+    - `timestamp`: RFC3339 time when the redaction was applied.
+    - `redacted_field`: string (path in the LLM payload that was stripped or masked).
+    - `reason`: string (brief rationale for the removal).
+    - `sanitized_ref`: string (reference to the sanitized artifact or field that was sent to the LLM).
+    - `original_hash` (optional): hash of the original field content to prove it was seen.
+    These entries satisfy the LLM boundary requirement to “record all redactions” and provide a deterministically referenceable audit trail.
 - llm_explanation (optional):
   - enabled: boolean
   - non_authoritative: true
   - content_ref: string
 
+### MVP vs Recommended Trace and Audit Detail
+For **MVP compliance**, the following decision_trace and audit elements are mandatory:
+- Presence of a `decision_trace` array covering ingest, normalize, score, policy, and
+  decision events.
+- For each suppression-producing mechanism
+  (`governance.applied`, `exception.applied`, `noise_budget.applied`):
+  - `suppressed_fingerprints` (bounded to at least the first 20 entries).
+  - `suppressed_count`.
+  - `suppressed_by`.
+- For each LLM redaction event in `decision_trace.redaction.events`:
+  - `event_id`, `timestamp`, `redacted_field`, `reason`, `sanitized_ref`.
+
+The following fields and additional events are **strongly recommended** but not required
+for the initial 2–3 week MVP implementation:
+- `original_hash` in redaction events.
+- Rich, engine-emitted governance floor and escalation events beyond the minimum needed to
+  reconstruct decisions (for example, specialized `governance.floor.warn` and
+  `governance.expired_escalation` event types).
+- Extended audit trails on accepted risk objects beyond the minimal lifecycle information
+  required in `docs/governance-accepted-risk.md`.
+
+Later versions SHOULD implement the recommended fields and events for stronger
+auditability, but an MVP implementation that satisfies the mandatory items above is
+considered conformant.
+
 ## Provenance & Signing: Hard-Stops vs Trust Penalties (Authoritative)
+**MVP scope:** Provenance hard-stops are MVP-in-scope. Policy fields `requires_signed_artifact` and `requires_provenance_level` (in policy or context) control when synthetic PROVENANCE findings are emitted. When absent, only trust penalties apply; no hard-stop is emitted for unsigned/unknown provenance.
+
 Provenance and signing controls operate on two deterministic layers so that only explicit, policy-triggered violations block a release while weaker signals only adjust trust.
 
 1. **Hard-stop layer** emits synthetic findings with `domain=PROVENANCE`, `hard_stop=true`, `risk_score=100`, `severity=CRITICAL`, and a stable `fingerprint` derived from the hard-stop token plus the artifact identity and policy scope. These synthetic findings are normalized, traced, and evaluated before scoring and noise budgeting (see Deterministic Evaluation Order step 2); they cannot be suppressed or subject to noise budget.
@@ -394,7 +651,7 @@ Trust-penalty-only cases (no synthetic finding):
 
 This separation ensures unsigned artifacts are not always just a minor penalty: they only force BLOCK when the policy requires signing or another hard-stop fails.
 
-## 10) Deterministic recommended_next_steps
+## 11) Deterministic recommended_next_steps
 The engine produces rule-based actions only. LLM text may rephrase but cannot add actions.
 
 | Step ID | Trigger | Action |
@@ -408,7 +665,7 @@ The engine produces rule-based actions only. LLM text may rephrase but cannot ad
 | REFRESH_SCAN | scan_freshness low | Re-run scanner to refresh data. |
 | IMPROVE_TRUST | trust_score < 40 | Add missing provenance signals or protected CI. |
 
-## 11) Example Walkthroughs
+## 12) Example Walkthroughs
 
 ### Example A: Same HIGH CVE in pr vs prod
 Input:
@@ -466,6 +723,93 @@ Hard-stop rules apply:
 - Decision: BLOCK at all stages, regardless of noise budget or accepted risk.
 - recommended_next_steps: ROTATE_SECRET
 
+### Example D: Accepted Risk with suppress_from_scoring + WARN floor
+Inputs:
+- Findings:
+  - F1: HIGH severity VULNERABILITY, `fingerprint=fp-high-1`
+  - F2: MEDIUM severity VULNERABILITY, `fingerprint=fp-med-1`
+- Context: stage=main, exposure=internal, change_type=moderate
+- Trust: 70
+- Accepted risk:
+  - risk_id=AR-001, `status=active`, `effects=["suppress_from_scoring"]`
+  - stage_scope includes main; environment_scope includes current environment
+  - finding_selector matches `fingerprint=fp-high-1` only
+
+Behavior:
+- During governance (step 4 of **Canonical Deterministic Evaluation Order (Authoritative)**), F1 is removed from the scoring set because AR-001 is active and includes `suppress_from_scoring`.
+- F2 remains in the scoring set and contributes to `findings.considered_count` and `scoring.max_finding_risk`.
+- Because AR-001 actively covers a HIGH-severity finding (F1) in the current stage/environment, the **Precedence Rules** and governance document’s WARN floor require the final decision to be at least WARN even if `release_risk` computed from F2 alone would otherwise allow ALLOW.
+
+decision.json highlights:
+- `findings.total_count = 2`
+- `findings.considered_count = 1` (F2 only)
+- `findings.items`:
+  - F1: `suppressed_by_accepted_risk=true`, `risk_score=100` (still recorded), `hard_stop=false`
+  - F2: `suppressed_by_accepted_risk=false`
+- `scoring.max_finding_risk` reflects only F2.
+- `decision.status = WARN`, `decision.exit_code = 1` (due to WARN floor, not just numeric thresholds).
+- `policy.accepted_risks_applied` includes `AR-001`, and `policy.accepted_risks_coverage` links `risk_id=AR-001` to `finding_ids` / `fingerprints` including `fp-high-1`.
+
+decision_trace highlights:
+- `governance.applied` event listing `suppressed_fingerprints=["fp-high-1"]` and `suppressed_by="accepted_risk"`.
+- A governance-floor event (e.g., `governance.floor.warn`) documenting that coverage of a HIGH finding by AR-001 forced at least WARN for this stage.
+
+### Example E: Expired Accepted Risk forcing BLOCK in release/prod
+Inputs:
+- Findings:
+  - F3: CRITICAL severity VULNERABILITY, `fingerprint=fp-crit-1`
+- Context: stage=release (similar behavior applies to prod), exposure=internal, change_type=moderate
+- Trust: 80
+- Accepted risk:
+  - risk_id=AR-002, `status=expired` or `status=active` but `now >= expires_at`
+  - stage_scope includes release; environment_scope includes current environment
+  - finding_selector matches `fingerprint=fp-crit-1`
+
+Behavior:
+- At CLI validation time, AR-002 is treated as expired and therefore **inactive** for suppression, WARN floor, or prod WARN coverage (see governance **Expiry-Based Escalation** and this document’s **Escalation Logic (Stage and Expiry)**).
+- During governance, F3 is **not** suppressed from the scoring set because AR-002 is no longer active.
+- Release risk computed from F3 and context exceeds the BLOCK threshold.
+- Because an expired accepted risk would have covered a CRITICAL finding at release/prod, expiry escalation forces BLOCK even if other factors (e.g., trust) might have allowed WARN.
+
+decision.json highlights:
+- `findings.total_count = 1`, `findings.considered_count = 1`.
+- `findings.items[0]` shows `suppressed_by_accepted_risk=false`.
+- `policy.accepted_risks_applied` does **not** include `AR-002` (it is inactive).
+- `decision.status = BLOCK`, `decision.exit_code = 2`.
+
+decision_trace highlights:
+- An `accepted_risk.status_change` or `governance.expired` event referencing `risk_id=AR-002`, `status=expired`, and `matched_fingerprints` including `fp-crit-1`.
+- A corresponding escalation event (e.g., `governance.expired_escalation`) indicating that expiry of AR-002 at release/prod forced BLOCK, referencing the same fingerprint and stage.
+
+### Example F: Partial prod WARN coverage still escalates to BLOCK
+Inputs:
+- Findings in scoring set (all non-hard-stop):
+  - F4: HIGH severity VULNERABILITY, `fingerprint=fp-high-a`
+  - F5: HIGH severity VULNERABILITY, `fingerprint=fp-high-b`
+- Context: stage=prod, exposure=public, change_type=high_risk
+- Trust: 75
+- Accepted risk:
+  - risk_id=AR-003, `status=active`, `allow_warn_in_prod=true`
+  - stage_scope includes prod; environment_scope includes current environment
+  - finding_selector matches only `fingerprint=fp-high-a`
+
+Behavior:
+- After scoring and governance, both F4 and F5 remain in the scoring set (no suppress_from_scoring effects).
+- The **Deterministic Finding Ordering** identifies both findings as non-hard-stop with `severity >= HIGH`, so the **warn-causing set** for prod consists of fingerprints `{fp-high-a, fp-high-b}`.
+- AR-003 covers only `fp-high-a`. Because not **every** `warn_causing_fingerprint` is covered by an active accepted risk with `allow_warn_in_prod=true`, prod WARN→BLOCK escalation remains in effect.
+- If the stage decision matrix initially yields WARN, the global prod escalation upgrades the final decision to BLOCK.
+
+decision.json highlights:
+- `findings.total_count = 2`, `findings.considered_count = 2`.
+- `policy.accepted_risks_applied` includes `AR-003`, and `policy.accepted_risks_coverage` maps `AR-003` to `fingerprints=["fp-high-a"]` only.
+- `policy.allow_warn_in_prod_applied = false` because not all warn-causing fingerprints are covered.
+- `decision.status = BLOCK`, `decision.exit_code = 2` (due to WARN→BLOCK escalation).
+
+decision_trace highlights:
+- A `policy.warn_causing_set` event listing `warn_causing_fingerprints=["fp-high-a","fp-high-b"]`.
+- A `policy.accepted_risk.applied` event for `risk_id=AR-003` showing `matched_fingerprints=["fp-high-a"]`.
+- A prod escalation event (e.g., `policy.warn_to_block.escalated`) that references the unmatched fingerprint `fp-high-b` and records that `allow_warn_in_prod` could not be applied because coverage was partial.
+
 ## Acceptance Criteria
 - [ ] Unified finding schema is fully specified with required and optional fields.
 - [ ] Risk scoring model is deterministic, monotonic, and handles unknowns safely.
@@ -474,6 +818,7 @@ Hard-stop rules apply:
 - [ ] Decision matrices are defined for all four stages with hard-stop handling.
 - [ ] Escalation logic covers stage changes and accepted risk expiry.
 - [ ] Noise budget applies only to pr by default and never to hard-stop domains.
+- [ ] Suppression and decision trace invariants are explicitly defined and referenced by other docs.
 - [ ] decision.json schema is authoritative and complete.
 - [ ] Deterministic recommended_next_steps are enumerated.
 - [ ] All required example walkthroughs are present and consistent.
