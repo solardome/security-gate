@@ -67,6 +67,7 @@ All listed fields must match if present:
 - allow_warn_in_prod must be explicitly true to allow WARN in prod.
 - finding_selector must be specific enough to avoid broad suppression.
 - finding_selector must target fingerprint for deterministic matching; other fields are supplemental.
+- When stage_scope includes prod and the finding_selector targets severity HIGH or CRITICAL, at least one approval must carry `role="security"`; without it the record is governance-invalid, ignored for gating and coverage, and emits a governance warning.
 
 ### Engine-Enforced Validation Behavior
 The deterministic engine MUST enforce the following behaviors when loading and
@@ -92,10 +93,8 @@ evaluating accepted risk records:
   core decision engine.
 
 ## Approval Rules
-- All accepted risks require at least one approval.
-- If stage_scope includes prod **and** a matched finding is HIGH or CRITICAL,
-  at least one approver must have the role "security".
-- Approval records must include approver name, role, and timestamp.
+- All accepted risks require at least one approval and approval records must include approver name, role, and timestamp.
+- If stage_scope includes prod **and** a matched finding is HIGH or CRITICAL, at least one approver must have the role "security". The engine enforces this requirement deterministically: records without the security-role approver are governance-invalid and therefore ignored for suppression or coverage while emitting governance warnings.
 
 ## Precedence Rules
 - Policy rules are tighten-only except that an explicitly approved Accepted Risk may prevent warn_to_block escalation for its scoped findings when allow_warn_in_prod=true.
