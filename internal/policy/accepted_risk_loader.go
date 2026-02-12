@@ -27,7 +27,7 @@ func (e guardrailError) ErrorCode() string {
 
 // LoadAcceptedRisks reads the repo-local accepted risk file and returns the parsed
 // records plus the SHA-256 hash of the file contents. The loader enforces the
-// schema described in docs/governance-accepted-risk.md and reports any fatal
+// schema described in docs/md/governance-accepted-risk.md and reports any fatal
 // validation failures so the CLI can treat them as fatal errors.
 func LoadAcceptedRisks(path string) ([]AcceptedRisk, string, error) {
 	if stat, err := os.Stat(path); err == nil && stat.Size() > maxAcceptedRiskBytes {

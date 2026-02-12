@@ -34,3 +34,10 @@ go.work.sum
 
 # OS
 .DS_Store
+
+# Build/output directories
+/bin/
+/reports/
+/main
+
+.gomodcache/

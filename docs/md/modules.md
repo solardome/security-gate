@@ -1,10 +1,10 @@
 # Modules
 
 Authority Notice
-This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/md/core-decision-engine.md, and the policy schema lives in docs/md/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
 
 This document specifies module responsibilities, interfaces, and operational constraints.
-It aligns with `docs/core-decision-engine.md` and remains implementation-agnostic.
+It aligns with `docs/md/core-decision-engine.md` and remains implementation-agnostic.
 
 ## Fatal Errors and Fail-Closed Defaults (Authoritative)
 Fatal errors are deterministic pipeline failures that make the decision non-authoritative. The following conditions are fatal:
@@ -20,7 +20,7 @@ Fail-closed defaults:
 
 All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.
 
-## cmd/cli
+## cmd/security-gate
 Purpose:
 - Orchestrate the deterministic pipeline and produce exit codes 0/1/2.
 
@@ -103,7 +103,7 @@ Error Handling:
 - Required fields must be populated; missing scan_timestamp uses ingest_time with timestamp_source=ingest, and input_sha256 must be computed at ingest.
 - Schema validation failure is a fatal error.
 - Cannot hash decision-affecting inputs is a fatal error.
-- If domain cannot be mapped, emit the synthetic `UNKNOWN_DOMAIN_MAPPING` hard-stop condition as defined in `docs/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**, implemented as a normalized finding with `title=UNKNOWN_DOMAIN_MAPPING`, `domain=CONFIG`, and `severity=HIGH`. Record the raw domain value in decision_trace.
+- If domain cannot be mapped, emit the synthetic `UNKNOWN_DOMAIN_MAPPING` hard-stop condition as defined in `docs/md/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**, implemented as a normalized finding with `title=UNKNOWN_DOMAIN_MAPPING`, `domain=CONFIG`, and `severity=HIGH`. Record the raw domain value in decision_trace.
 
 Logging and Traceability:
 - Records normalization warnings and field substitutions in decision_trace.
@@ -154,7 +154,7 @@ Logging and Traceability:
 Security Considerations:
 - No policy rule can override hard-stop conditions.
 - The exhaustive set of hard-stop conditions is defined authoritatively in
-  `docs/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**; all of
+  `docs/md/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**; all of
   these conditions bypass noise budget, cannot be suppressed, and always force BLOCK.
 
 ## decision_trace

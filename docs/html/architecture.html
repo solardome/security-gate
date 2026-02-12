@@ -323,7 +323,7 @@ tr:nth-child(even) td { background: #26170f; }
   <div class="layout">
     <div class="site-header">
       <div class="brand">
-        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <img src="images/solardome-logo2.png" alt="solardome logo">
         <div class="brand-text">
           <div class="brand-app">security-gate</div>
           <div class="brand-company">solardome</div>
@@ -353,8 +353,8 @@ tr:nth-child(even) td { background: #26170f; }
 </div>
 
 <h1 id="architecture">Architecture</h1>
-<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
-<p>This document defines the system architecture for security-gate. It is consistent with <code>docs/core-decision-engine.md</code> and focuses on components, data flow, trust/provenance, and safe defaults. It avoids implementation details.</p>
+<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/md/core-decision-engine.md, and the policy schema lives in docs/md/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document defines the system architecture for security-gate. It is consistent with <code>docs/md/core-decision-engine.md</code> and focuses on components, data flow, trust/provenance, and safe defaults. It avoids implementation details.</p>
 <h2 id="goals">Goals</h2>
 <ul>
 <li>Deterministic, stage-aware CI/CD decisions (ALLOW, WARN, BLOCK).</li>
@@ -366,7 +366,7 @@ tr:nth-child(even) td { background: #26170f; }
 <div class="pipeline-diagram" aria-label="Security-gate pipeline flow"><div class="pipeline-main"><div class="pipeline-step"><div class="pipeline-step-title">Input Collection</div><div class="pipeline-step-sub">Trivy JSON, stdin, context.json, policy, accepted risk file</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Ingest</div><div class="pipeline-step-sub">ingest/trivy parses scanner payloads and captures metadata</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Normalize</div><div class="pipeline-step-sub">Map to unified finding schema</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Score</div><div class="pipeline-step-sub">Compute risk_score and trust_score with provenance/trust signals</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Policy</div><div class="pipeline-step-sub">Apply noise budget, exceptions, accepted risk, and stage matrix</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Decision Trace</div><div class="pipeline-step-sub">Ordered auditable decision events</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Report</div><div class="pipeline-step-sub">Write decision.json and summary.md</div></div></div><div class="pipeline-branch-wrap"><div class="pipeline-branch"><div class="pipeline-branch-label"><span class="pipeline-branch-arrow">↓</span>Side branch from Decision Trace</div><div class="pipeline-step"><div class="pipeline-step-title">LLM Explanation (Optional)</div><div class="pipeline-step-sub">Consumes sanitized trace and returns non-authoritative text only</div></div></div><div class="pipeline-note">Deterministic boundary: LLM output never changes scoring, policy, or final decision.</div></div></div>
 <h2 id="module-boundaries">Module Boundaries</h2>
 <ul>
-<li>cmd/cli orchestrates the pipeline and owns exit code behavior.</li>
+<li>cmd/security-gate orchestrates the pipeline and owns exit code behavior.</li>
 <li>ingest/trivy parses scanner outputs and hashes inputs.</li>
 <li>normalize converts scanner-specific data to the unified finding schema.</li>
 <li>score computes risk_score and trust_score deterministically.</li>
@@ -377,7 +377,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>llm consumes sanitized trace data and produces non-authoritative text only.</li>
 </ul>
 <h2 id="data-flow-authoritative">Data Flow (Authoritative)</h2>
-<p>At a high level, data flows from ingest → normalize → score → policy → decision_trace → report, with optional LLM explanation consuming sanitized trace data. Evaluation order for governance, scoring, noise budget, policy, and decision matrix is defined canonically in <code>docs/core-decision-engine.md</code> under <strong>“Canonical Deterministic Evaluation Order (Authoritative)”</strong> and is not re-specified here.</p>
+<p>At a high level, data flows from ingest → normalize → score → policy → decision_trace → report, with optional LLM explanation consuming sanitized trace data. Evaluation order for governance, scoring, noise budget, policy, and decision matrix is defined canonically in <code>docs/md/core-decision-engine.md</code> under <strong>“Canonical Deterministic Evaluation Order (Authoritative)”</strong> and is not re-specified here.</p>
 <h2 id="deterministic-vs-ai-boundary">Deterministic vs AI Boundary</h2>
 <ul>
 <li>Deterministic boundary includes ingest, normalize, score, policy, and decision_trace.</li>
@@ -405,10 +405,10 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 </ul>
 <h2 id="stage-enum-canonical">Stage Enum (Canonical)</h2>
-<p>The canonical stage enum and legacy-to-canonical mapping are defined in <code>docs/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong> and are the single source of truth. Informally for architecture discussions: stages are <code>pr</code>, <code>main</code>, <code>release</code>, and <code>prod</code> (with legacy terms like PR/feature, merge/main, and deploy-to-prod mapping to those canonical tokens).</p>
+<p>The canonical stage enum and legacy-to-canonical mapping are defined in <code>docs/md/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong> and are the single source of truth. Informally for architecture discussions: stages are <code>pr</code>, <code>main</code>, <code>release</code>, and <code>prod</code> (with legacy terms like PR/feature, merge/main, and deploy-to-prod mapping to those canonical tokens).</p>
 <h2 id="failure-modes-and-safe-defaults">Failure Modes and Safe Defaults</h2>
 <ul>
-<li>Hard-stop conditions are defined authoritatively in <code>docs/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>.</li>
+<li>Hard-stop conditions are defined authoritatively in <code>docs/md/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>.</li>
 <li>These hard-stop conditions are never suppressible, bypass noise budgets, and always force BLOCK regardless of release risk or trust.</li>
 <li>input_sha256 is mandatory and computed at ingest; if it cannot be computed, the decision is fail-closed for stage=main, release, and prod. For stage=pr, proceed only with a recorded warning and low-trust defaults.</li>
 <li>scan_timestamp must be present; if missing from scanner output, substitute ingest_time and record timestamp_source=ingest.</li>

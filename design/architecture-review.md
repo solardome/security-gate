@@ -5,17 +5,17 @@ enterprise DevSecOps / security platform.
 
 Authoritative intent:
 - design/architecture.prompt.md is the design authority.
-- docs/core-decision-engine.md is the highest authority for logic.
+- docs/md/core-decision-engine.md is the highest authority for logic.
 - Other docs must be consistent with them.
 
 Scope of review:
 - README.md
-- docs/architecture.md
-- docs/core-decision-engine.md
-- docs/modules.md
-- docs/policy-format.md
-- docs/llm-boundary.md
-- docs/governance-accepted-risk.md
+- docs/md/architecture.md
+- docs/md/core-decision-engine.md
+- docs/md/modules.md
+- docs/md/policy-format.md
+- docs/md/llm-boundary.md
+- docs/md/governance-accepted-risk.md
 
 REVIEW OBJECTIVES:
 1) Verify architectural correctness

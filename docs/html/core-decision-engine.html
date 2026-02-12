@@ -323,7 +323,7 @@ tr:nth-child(even) td { background: #26170f; }
   <div class="layout">
     <div class="site-header">
       <div class="brand">
-        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <img src="images/solardome-logo2.png" alt="solardome logo">
         <div class="brand-text">
           <div class="brand-app">security-gate</div>
           <div class="brand-company">solardome</div>
@@ -345,7 +345,7 @@ tr:nth-child(even) td { background: #26170f; }
     <article class="card">
 
 <h1 id="core-decision-engine">Core Decision Engine</h1>
-<p>Authoritative specification for the deterministic decision engine. This document defines normalized inputs, scoring, trust, gating, and outputs. It must be internally consistent and implementation-agnostic, and is the <strong>single source of truth</strong> for all normative decision logic (hard-stop conditions, risk and trust formulas, stage matrices, noise budget semantics, suppression behavior, and provenance handling). Other documents (<code>README.md</code>, <code>docs/architecture.md</code>, <code>docs/modules.md</code>, <code>docs/policy-format.md</code>, <code>docs/governance-accepted-risk.md</code>, <code>docs/llm-boundary.md</code>) may summarize this logic for readability but MUST NOT redefine or partially override it.</p>
+<p>Authoritative specification for the deterministic decision engine. This document defines normalized inputs, scoring, trust, gating, and outputs. It must be internally consistent and implementation-agnostic, and is the <strong>single source of truth</strong> for all normative decision logic (hard-stop conditions, risk and trust formulas, stage matrices, noise budget semantics, suppression behavior, and provenance handling). Other documents (<code>README.md</code>, <code>docs/md/architecture.md</code>, <code>docs/md/modules.md</code>, <code>docs/md/policy-format.md</code>, <code>docs/md/governance-accepted-risk.md</code>, <code>docs/md/llm-boundary.md</code>) may summarize this logic for readability but MUST NOT redefine or partially override it.</p>
 <h2 id="purpose-and-scope">Purpose and Scope</h2>
 <ul>
 <li>Convert scanner findings into deterministic, stage-aware CI/CD decisions: ALLOW, WARN, BLOCK.</li>
@@ -407,7 +407,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Validate that <code>pipeline_stage</code> is one of the canonical tokens or fail validation.</li>
 <li>Default missing optional fields into the “unknown” buckets described in the trust score</li>
 </ul>
-<p>table rather than inventing new enums or semantics. Other documents (for example, <code>docs/architecture.md</code>, <code>docs/modules.md</code>, and <code>docs/policy-format.md</code>) MUST treat this section as the single source of truth for the context payload shape and refer to it rather than re-stating field lists.</p>
+<p>table rather than inventing new enums or semantics. Other documents (for example, <code>docs/md/architecture.md</code>, <code>docs/md/modules.md</code>, and <code>docs/md/policy-format.md</code>) MUST treat this section as the single source of truth for the context payload shape and refer to it rather than re-stating field lists.</p>
 <h2 id="stage-enum-canonical">Stage Enum (Canonical)</h2>
 <p>Stages are represented by the following tokens:</p>
 <ul>
@@ -732,7 +732,7 @@ tr:nth-child(even) td { background: #26170f; }
 <ul>
 <li>**Governance WARN floor (Sections &quot;False Positives, Exceptions, Accepted Risk Governance&quot;</li>
 </ul>
-<p>and <code>docs/governance-accepted-risk.md</code>)**</p>
+<p>and <code>docs/md/governance-accepted-risk.md</code>)**</p>
 <ul>
 <ul>
 <li>When a valid Accepted Risk record actively covers at least one HIGH/CRITICAL,</li>
@@ -756,7 +756,7 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <p>remains.</p>
 <ul>
-<li><strong>Expiry-based escalation (this section and <code>docs/governance-accepted-risk.md</code>)</strong></li>
+<li><strong>Expiry-based escalation (this section and <code>docs/md/governance-accepted-risk.md</code>)</strong></li>
 <ul>
 <li>Expired or revoked Accepted Risks are never treated as active for suppression or prod</li>
 </ul>
@@ -774,7 +774,7 @@ tr:nth-child(even) td { background: #26170f; }
 <ul>
 <li>**require_accepted_risk gates (Section &quot;Noise Budget Mechanism (Guardrails)&quot; and</li>
 </ul>
-<p><code>docs/policy-format.md</code>)**</p>
+<p><code>docs/md/policy-format.md</code>)**</p>
 <ul>
 <ul>
 <li>When a policy rule with <code>require_accepted_risk</code> matches and there is no active,</li>
@@ -790,7 +790,7 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 </ul>
 <ul>
-<li><strong>Fatal errors and fail-closed behavior (<code>docs/modules.md</code>)</strong></li>
+<li><strong>Fatal errors and fail-closed behavior (<code>docs/md/modules.md</code>)</strong></li>
 <ul>
 <li>For stage=main/release/prod, any fatal ingest/normalize/score/policy/accepted-risk</li>
 </ul>
@@ -832,7 +832,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Suppressed findings remain in the decision trace and summary metrics.</li>
 <li>Hard-stop findings bypass noise budget and always count.</li>
 <ul>
-<li>The <strong>considered set</strong> is the subset of the scoring set that survives the PR-only noise budget. Policy selectors that specify <code>scope: considered_set</code> operate on this post-noise-budget subset; selectors without this flag always operate on the pre-budget scoring set. The considered set is undefined for stages other than <code>pr</code> because noise budgeting is disabled elsewhere. This definition is the authoritative signal used by <code>docs/policy-format.md</code> to keep <code>require_accepted_risk</code> selectors deterministic.</li>
+<li>The <strong>considered set</strong> is the subset of the scoring set that survives the PR-only noise budget. Policy selectors that specify <code>scope: considered_set</code> operate on this post-noise-budget subset; selectors without this flag always operate on the pre-budget scoring set. The considered set is undefined for stages other than <code>pr</code> because noise budgeting is disabled elsewhere. This definition is the authoritative signal used by <code>docs/md/policy-format.md</code> to keep <code>require_accepted_risk</code> selectors deterministic.</li>
 </ul>
 </ul>
 <h2 id="8-false-positives-exceptions-accepted-risk-governance">8) False Positives, Exceptions, Accepted Risk Governance</h2>
@@ -855,7 +855,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Exceptions and accepted risks may only suppress <strong>non-hard-stop</strong> findings.</li>
 <li>PR-only noise budget may only suppress non-hard-stop findings for <code>stage=pr</code> and never</li>
 </ul>
-<p>for <code>main</code>, <code>release</code>, or <code>prod</code>. Any attempt to enable a noise budget outside <code>pr</code> is a fatal policy error (see <strong>Fatal Errors and Fail-Closed Defaults (Authoritative)</strong> in <code>docs/modules.md</code>).</p>
+<p>for <code>main</code>, <code>release</code>, or <code>prod</code>. Any attempt to enable a noise budget outside <code>pr</code> is a fatal policy error (see <strong>Fatal Errors and Fail-Closed Defaults (Authoritative)</strong> in <code>docs/md/modules.md</code>).</p>
 <h3 id="suppression-precedence-authoritative">Suppression Precedence (Authoritative)</h3>
 <p>When multiple suppression mechanisms could apply to the same non-hard-stop finding within a single evaluation pass, the engine MUST apply the following precedence order and set only one suppression flag on the finding:</p>
 <ol>
@@ -1071,7 +1071,7 @@ tr:nth-child(even) td { background: #26170f; }
 <ul>
 <li>Extended audit trails on accepted risk objects beyond the minimal lifecycle information</li>
 </ul>
-<p>required in <code>docs/governance-accepted-risk.md</code>.</p>
+<p>required in <code>docs/md/governance-accepted-risk.md</code>.</p>
 <p>Later versions SHOULD implement the recommended fields and events for stronger auditability, but an MVP implementation that satisfies the mandatory items above is considered conformant.</p>
 <h2 id="provenance-signing-hard-stops-vs-trust-penalties-authoritative">Provenance &amp; Signing: Hard-Stops vs Trust Penalties (Authoritative)</h2>
 <p><strong>MVP scope:</strong> Provenance hard-stops are MVP-in-scope. Policy fields <code>requires_signed_artifact</code> and <code>requires_provenance_level</code> (in policy or context) control when synthetic PROVENANCE findings are emitted. When absent, only trust penalties apply; no hard-stop is emitted for unsigned/unknown provenance.</p>

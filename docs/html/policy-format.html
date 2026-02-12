@@ -323,7 +323,7 @@ tr:nth-child(even) td { background: #26170f; }
   <div class="layout">
     <div class="site-header">
       <div class="brand">
-        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <img src="images/solardome-logo2.png" alt="solardome logo">
         <div class="brand-text">
           <div class="brand-app">security-gate</div>
           <div class="brand-company">solardome</div>
@@ -345,8 +345,8 @@ tr:nth-child(even) td { background: #26170f; }
     <article class="card">
 
 <h1 id="policy-format">Policy Format</h1>
-<p>Authority Notice This document describes the canonical policy schema while remaining non-authoritative for decision logic, evaluation order, and stage behavior, which are defined exclusively in docs/core-decision-engine.md; design intent lives in design/architecture.prompt.md. In conflicts, the schema documented here and those authoritative sources prevail and this document must not override or reinterpret them.</p>
-<p>This document defines the minimal policy-as-code format used by security-gate. It is deterministic, stage-aware, and consistent with <code>docs/core-decision-engine.md</code>, which remains the <strong>authoritative source</strong> for scoring formulas, stage matrices, hard-stop conditions, noise budget guardrails, and suppression invariants. This document specifies how policy files <em>configure</em> that engine and MUST NOT redefine core decision logic.</p>
+<p>Authority Notice This document describes the canonical policy schema while remaining non-authoritative for decision logic, evaluation order, and stage behavior, which are defined exclusively in docs/md/core-decision-engine.md; design intent lives in design/architecture.prompt.md. In conflicts, the schema documented here and those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document defines the minimal policy-as-code format used by security-gate. It is deterministic, stage-aware, and consistent with <code>docs/md/core-decision-engine.md</code>, which remains the <strong>authoritative source</strong> for scoring formulas, stage matrices, hard-stop conditions, noise budget guardrails, and suppression invariants. This document specifies how policy files <em>configure</em> that engine and MUST NOT redefine core decision logic.</p>
 <h2 id="purpose">Purpose</h2>
 <ul>
 <li>Define rule structure and evaluation behavior.</li>
@@ -360,7 +360,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>All policies are local files; no network dependencies.</li>
 <li>The base decision matrix and scoring model are fixed by</li>
 </ul>
-<p><code>docs/core-decision-engine.md</code>. Policy rules may only <strong>tighten</strong> decisions; accepted risk handling follows Precedence Rules.</p>
+<p><code>docs/md/core-decision-engine.md</code>. Policy rules may only <strong>tighten</strong> decisions; accepted risk handling follows Precedence Rules.</p>
 <ul>
 <li>Noise budget configuration is limited to <code>stage=pr</code> in the MVP:</li>
 <ul>
@@ -379,7 +379,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Any policy that attempts to enable noise budgeting for <code>main</code>, <code>release</code>, or <code>prod</code></li>
 </ul>
 </ul>
-<p>is treated as a <strong>policy parse/validation fatal error</strong>; such policies MUST be rejected by the engine and result in fail-closed behavior per <code>docs/modules.md</code>.</p>
+<p>is treated as a <strong>policy parse/validation fatal error</strong>; such policies MUST be rejected by the engine and result in fail-closed behavior per <code>docs/md/modules.md</code>.</p>
 <h2 id="provenance-signing-controls">Provenance &amp; Signing Controls</h2>
 <p>Policy requirements such as <code>requires_signed_artifact=true</code> or <code>requires_provenance_level&gt;=L2</code> are enforced deterministically in two layers:</p>
 <ol>
@@ -395,7 +395,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>metadata: object (optional)</li>
 </ul>
 <h2 id="stage-enum-canonical">Stage Enum (Canonical)</h2>
-<p>The canonical stage enum and legacy-to-canonical mapping are defined in <code>docs/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong> and MUST be treated as the single source of truth. For convenience when writing policies, stages are referenced by the canonical tokens:</p>
+<p>The canonical stage enum and legacy-to-canonical mapping are defined in <code>docs/md/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong> and MUST be treated as the single source of truth. For convenience when writing policies, stages are referenced by the canonical tokens:</p>
 <ul>
 <li>pr</li>
 <li>main</li>
@@ -459,7 +459,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>scope: enum (scoring_set | considered_set) (default=scoring_set)</li>
 <ul>
 <li>scoring_set: derive fingerprints after governance suppressions and before PR-only noise budget</li>
-<li>considered_set: derive fingerprints after PR-only noise budget (stage=pr only); see the canonical definition in <code>docs/core-decision-engine.md</code> → “Noise Budget Mechanism (Guardrails)” so selectors remain aligned with the authoritative pipeline.</li>
+<li>considered_set: derive fingerprints after PR-only noise budget (stage=pr only); see the canonical definition in <code>docs/md/core-decision-engine.md</code> → “Noise Budget Mechanism (Guardrails)” so selectors remain aligned with the authoritative pipeline.</li>
 </ul>
 </ul>
 </ul>
@@ -481,7 +481,7 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <h2 id="exception-objects-false-positives">Exception Objects (False Positives)</h2>
 <p>Exceptions suppress known false positives. They are always time-bound and scoped.</p>
-<p><strong>Exception vs Accepted Risk selectors:</strong> Exceptions use <code>finding_selector</code> with keys such as domain, cve_id, title_contains, location_contains, source_scanner, severity. Exceptions may match <strong>without</strong> fingerprint—matching is evaluated at runtime by comparing selector fields to each finding; all present selector keys must match. This allows broad suppression of known false positives (e.g., by CVE or domain). Accepted Risks, by contrast, <strong>must</strong> include fingerprint in finding_selector for deterministic, stable matching (see <code>docs/governance-accepted-risk.md</code>). Exceptions and Accepted Risks are independent: an exception cannot reference an accepted risk, and vice versa.</p>
+<p><strong>Exception vs Accepted Risk selectors:</strong> Exceptions use <code>finding_selector</code> with keys such as domain, cve_id, title_contains, location_contains, source_scanner, severity. Exceptions may match <strong>without</strong> fingerprint—matching is evaluated at runtime by comparing selector fields to each finding; all present selector keys must match. This allows broad suppression of known false positives (e.g., by CVE or domain). Accepted Risks, by contrast, <strong>must</strong> include fingerprint in finding_selector for deterministic, stable matching (see <code>docs/md/governance-accepted-risk.md</code>). Exceptions and Accepted Risks are independent: an exception cannot reference an accepted risk, and vice versa.</p>
 <p>Required fields:</p>
 <ul>
 <li>id: string (unique)</li>
@@ -509,7 +509,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Exceptions suppress findings from decision scoring but keep them in the trace.</li>
 </ul>
 <h2 id="accepted-risk-objects-justified-risk-acceptance">Accepted Risk Objects (Justified Risk Acceptance)</h2>
-<p>Accepted risk objects are defined in <code>docs/governance-accepted-risk.md</code> and are provided as a local file. This policy format references the same schema.</p>
+<p>Accepted risk objects are defined in <code>docs/md/governance-accepted-risk.md</code> and are provided as a local file. This policy format references the same schema.</p>
 <p>Rules:</p>
 <ul>
 <li>Accepted risks are time-bound and scoped by stage and environment.</li>
@@ -517,7 +517,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Accepted risks may allow WARN in prod <strong>only if</strong> explicitly stated.</li>
 </ul>
 <h2 id="deterministic-evaluation-order">Deterministic Evaluation Order</h2>
-<p>Evaluation order is defined canonically in <code>docs/core-decision-engine.md</code> under <strong>“Canonical Deterministic Evaluation Order (Authoritative)”</strong> and is not re-specified here.</p>
+<p>Evaluation order is defined canonically in <code>docs/md/core-decision-engine.md</code> under <strong>“Canonical Deterministic Evaluation Order (Authoritative)”</strong> and is not re-specified here.</p>
 <h2 id="deterministic-finding-ordering-for-selectors-and-noise-budget">Deterministic Finding Ordering for Selectors and Noise Budget</h2>
 <p>Selectors, selectors-driven suppressions (e.g., require_accepted_risk), and the PR-only noise budget must reuse a single stable ordering so that results stay deterministic. The canonical order is:</p>
 <ol>
@@ -528,7 +528,7 @@ tr:nth-child(even) td { background: #26170f; }
 </ol>
 <p><code>noise_budget_top_k</code> ranking applies these rules to the non-hard-stop scoring set. <code>selector=top_findings</code> selects the <code>top_n</code> entries by the same order, and <code>selector.type=all_high_or_critical</code> first filters to severity <code>{HIGH, CRITICAL}</code> before sorting by this order to derive <code>matched_fingerprints</code>.</p>
 <h2 id="canonical-fingerprint-usage">Canonical Fingerprint Usage</h2>
-<p>Selectors, noise budgets, warn coverage, and accepted risk enforcement MUST rely on the canonical <code>fingerprint</code> defined in <code>docs/core-decision-engine.md</code>. This field is calculated by concatenating the normalized key fields in the prescribed order (domain, normalized location, evidence reference, title, severity, scanner, scanner version, CVE if present, and the input hash) and hashing the result with SHA-256. The scanner-provided <code>finding_id</code> remains part of the output for traceability, but it is not used for deterministic gating or policy selectors. Every occurrence of <code>matched_fingerprints</code>, <code>suppressed_fingerprints</code>, <code>warn_causing_fingerprints</code>, or any accepted risk selector must match on these canonical values so that policy enforcement, noise budgeting, and governance references remain stable across runs and revisions.</p>
+<p>Selectors, noise budgets, warn coverage, and accepted risk enforcement MUST rely on the canonical <code>fingerprint</code> defined in <code>docs/md/core-decision-engine.md</code>. This field is calculated by concatenating the normalized key fields in the prescribed order (domain, normalized location, evidence reference, title, severity, scanner, scanner version, CVE if present, and the input hash) and hashing the result with SHA-256. The scanner-provided <code>finding_id</code> remains part of the output for traceability, but it is not used for deterministic gating or policy selectors. Every occurrence of <code>matched_fingerprints</code>, <code>suppressed_fingerprints</code>, <code>warn_causing_fingerprints</code>, or any accepted risk selector must match on these canonical values so that policy enforcement, noise budgeting, and governance references remain stable across runs and revisions.</p>
 <h2 id="mvp-vs-v2-noise-budget-and-selectors">MVP vs v2: Noise Budget and Selectors</h2>
 <ul>
 <li>MVP: Noise budget configuration is limited to <code>stage=pr</code> only. Selectors or suppression logic that rely on <code>noise_budget_top_k</code> must respect the deterministic ordering above and must not be extended to main/release/prod in the MVP.</li>

@@ -1,10 +1,10 @@
 # Architecture
 
 Authority Notice
-This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/md/core-decision-engine.md, and the policy schema lives in docs/md/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
 
 This document defines the system architecture for security-gate. It is consistent with
-`docs/core-decision-engine.md` and focuses on components, data flow, trust/provenance,
+`docs/md/core-decision-engine.md` and focuses on components, data flow, trust/provenance,
 and safe defaults. It avoids implementation details.
 
 ## Goals
@@ -20,7 +20,7 @@ ingest → normalize → score → policy → decision_trace → report,
 with optional LLM explanation consuming sanitized trace data only.
 
 ## Module Boundaries
-- cmd/cli orchestrates the pipeline and owns exit code behavior.
+- cmd/security-gate orchestrates the pipeline and owns exit code behavior.
 - ingest/trivy parses scanner outputs and hashes inputs.
 - normalize converts scanner-specific data to the unified finding schema.
 - score computes risk_score and trust_score deterministically.
@@ -31,7 +31,7 @@ with optional LLM explanation consuming sanitized trace data only.
 - llm consumes sanitized trace data and produces non-authoritative text only.
 
 ## Data Flow (Authoritative)
-At a high level, data flows from ingest → normalize → score → policy → decision_trace → report, with optional LLM explanation consuming sanitized trace data. Evaluation order for governance, scoring, noise budget, policy, and decision matrix is defined canonically in `docs/core-decision-engine.md` under **“Canonical Deterministic Evaluation Order (Authoritative)”** and is not re-specified here.
+At a high level, data flows from ingest → normalize → score → policy → decision_trace → report, with optional LLM explanation consuming sanitized trace data. Evaluation order for governance, scoring, noise budget, policy, and decision matrix is defined canonically in `docs/md/core-decision-engine.md` under **“Canonical Deterministic Evaluation Order (Authoritative)”** and is not re-specified here.
 
 ## Deterministic vs AI Boundary
 - Deterministic boundary includes ingest, normalize, score, policy, and decision_trace.
@@ -53,13 +53,13 @@ At a high level, data flows from ingest → normalize → score → policy → d
 
 ## Stage Enum (Canonical)
 The canonical stage enum and legacy-to-canonical mapping are defined in
-`docs/core-decision-engine.md` under **“Stage Enum (Canonical)”** and are the single source
+`docs/md/core-decision-engine.md` under **“Stage Enum (Canonical)”** and are the single source
 of truth. Informally for architecture discussions: stages are `pr`, `main`, `release`,
 and `prod` (with legacy terms like PR/feature, merge/main, and deploy-to-prod mapping to
 those canonical tokens).
 
 ## Failure Modes and Safe Defaults
-- Hard-stop conditions are defined authoritatively in `docs/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**.
+- Hard-stop conditions are defined authoritatively in `docs/md/core-decision-engine.md` under **“Hard-Stop Conditions (Authoritative)”**.
 - These hard-stop conditions are never suppressible, bypass noise budgets, and always force BLOCK regardless of release risk or trust.
 - input_sha256 is mandatory and computed at ingest; if it cannot be computed, the decision is fail-closed for stage=main, release, and prod. For stage=pr, proceed only with a recorded warning and low-trust defaults.
 - scan_timestamp must be present; if missing from scanner output, substitute ingest_time and record timestamp_source=ingest.

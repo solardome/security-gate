@@ -2,7 +2,7 @@ package trivy
 
 import "time"
 
-// Stage represents the canonical pipeline stages from docs/core-decision-engine.md.
+// Stage represents the canonical pipeline stages from docs/md/core-decision-engine.md.
 type Stage string
 
 const (
@@ -12,7 +12,7 @@ const (
 	StageProd    Stage = "prod"
 )
 
-// Location mirrors the canonical location object from docs/core-decision-engine.md.
+// Location mirrors the canonical location object from docs/md/core-decision-engine.md.
 type Location struct {
 	Path    string `json:"path,omitempty"`
 	Package string `json:"package,omitempty"`
@@ -66,7 +66,7 @@ type IngestResult struct {
 	InputHashes map[string]string  `json:"input_hashes"`
 }
 
-// FatalError marks ingest failures that are considered fatal per docs/modules.md.
+// FatalError marks ingest failures that are considered fatal per docs/md/modules.md.
 type FatalError struct {
 	Stage Stage `json:"stage"`
 	Err   error `json:"error"`

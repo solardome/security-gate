@@ -143,7 +143,7 @@ README must include:
 
 ========================================================
 OUTPUT FILE 2:
-docs/architecture.md
+docs/md/architecture.md
 ========================================================
 Include:
 - High-level ASCII diagram
@@ -156,7 +156,7 @@ Include:
 
 ========================================================
 OUTPUT FILE 3:
-docs/core-decision-engine.md
+docs/md/core-decision-engine.md
 ========================================================
 MOST IMPORTANT DOCUMENT.
 Specify in detail:
@@ -180,7 +180,7 @@ Specify in detail:
 
 ========================================================
 OUTPUT FILE 4:
-docs/policy-format.md
+docs/md/policy-format.md
 ========================================================
 Define minimal policy-as-code format:
 - rule structure
@@ -193,7 +193,7 @@ Provide 6–10 example rules.
 
 ========================================================
 OUTPUT FILE 5:
-docs/modules.md
+docs/md/modules.md
 ========================================================
 For each module describe:
 - purpose
@@ -215,7 +215,7 @@ Modules:
 
 ========================================================
 OUTPUT FILE 6:
-docs/llm-boundary.md
+docs/md/llm-boundary.md
 ========================================================
 Specify:
 - LLM threat model
@@ -228,7 +228,7 @@ Specify:
 
 ========================================================
 OUTPUT FILE 7:
-docs/governance-accepted-risk.md
+docs/md/governance-accepted-risk.md
 ========================================================
 Define Justification Workflow:
 - Accepted Risk schema
@@ -251,6 +251,6 @@ DELIVERABLE:
 Output all files in order, with clear separators:
 --- FILE: README.md ---
 ...
---- FILE: docs/architecture.md ---
+--- FILE: docs/md/architecture.md ---
 ...
 etc.

@@ -5,8 +5,8 @@ normalized inputs, scoring, trust, gating, and outputs. It must be internally co
 and implementation-agnostic, and is the **single source of truth** for all normative
 decision logic (hard-stop conditions, risk and trust formulas, stage matrices, noise
 budget semantics, suppression behavior, and provenance handling). Other documents
-(`README.md`, `docs/architecture.md`, `docs/modules.md`, `docs/policy-format.md`,
-`docs/governance-accepted-risk.md`, `docs/llm-boundary.md`) may summarize this logic
+(`README.md`, `docs/md/architecture.md`, `docs/md/modules.md`, `docs/md/policy-format.md`,
+`docs/md/governance-accepted-risk.md`, `docs/md/llm-boundary.md`) may summarize this logic
 for readability but MUST NOT redefine or partially override it.
 
 ## Purpose and Scope
@@ -62,8 +62,8 @@ Context loaders MUST:
 - Validate that `pipeline_stage` is one of the canonical tokens or fail validation.
 - Default missing optional fields into the “unknown” buckets described in the trust score
   table rather than inventing new enums or semantics.
-Other documents (for example, `docs/architecture.md`, `docs/modules.md`, and
-`docs/policy-format.md`) MUST treat this section as the single source of truth for the
+Other documents (for example, `docs/md/architecture.md`, `docs/md/modules.md`, and
+`docs/md/policy-format.md`) MUST treat this section as the single source of truth for the
 context payload shape and refer to it rather than re-stating field lists.
 
 ## Stage Enum (Canonical)
@@ -389,7 +389,7 @@ the normative behavior is defined in the sections referenced below.
     over all other governance or policy mechanisms.
 
 - **Governance WARN floor (Sections "False Positives, Exceptions, Accepted Risk Governance"
-  and `docs/governance-accepted-risk.md`)**
+  and `docs/md/governance-accepted-risk.md`)**
   - When a valid Accepted Risk record actively covers at least one HIGH/CRITICAL,
     non-hard-stop finding in the current stage/environment, the final decision MUST be at
     least WARN, even if numeric thresholds would otherwise allow ALLOW.
@@ -402,7 +402,7 @@ the normative behavior is defined in the sections referenced below.
   - Partial coverage (some but not all warn-causing fingerprints) is insufficient; BLOCK
     remains.
 
-- **Expiry-based escalation (this section and `docs/governance-accepted-risk.md`)**
+- **Expiry-based escalation (this section and `docs/md/governance-accepted-risk.md`)**
   - Expired or revoked Accepted Risks are never treated as active for suppression or prod
     WARN coverage.
   - Nevertheless, if such a record would have covered a HIGH/CRITICAL finding:
@@ -410,13 +410,13 @@ the normative behavior is defined in the sections referenced below.
     - release/prod: the final decision is forced to BLOCK.
 
 - **require_accepted_risk gates (Section "Noise Budget Mechanism (Guardrails)" and
-  `docs/policy-format.md`)**
+  `docs/md/policy-format.md`)**
   - When a policy rule with `require_accepted_risk` matches and there is no active,
     in-scope Accepted Risk covering every required fingerprint:
     - pr: the outcome is tightened to at least WARN.
     - main/release/prod: the outcome is tightened to at least BLOCK.
 
-- **Fatal errors and fail-closed behavior (`docs/modules.md`)**
+- **Fatal errors and fail-closed behavior (`docs/md/modules.md`)**
   - For stage=main/release/prod, any fatal ingest/normalize/score/policy/accepted-risk
     error forces BLOCK with a minimal decision artifact.
   - For stage=pr, fatal errors produce WARN (with low-trust defaults) only when scanner
@@ -451,7 +451,7 @@ Rules:
 - Noise budget is applied after scoring and before stage decision, and only for stage=pr.
 - Suppressed findings remain in the decision trace and summary metrics.
 - Hard-stop findings bypass noise budget and always count.
-  - The **considered set** is the subset of the scoring set that survives the PR-only noise budget. Policy selectors that specify `scope: considered_set` operate on this post-noise-budget subset; selectors without this flag always operate on the pre-budget scoring set. The considered set is undefined for stages other than `pr` because noise budgeting is disabled elsewhere. This definition is the authoritative signal used by `docs/policy-format.md` to keep `require_accepted_risk` selectors deterministic.
+  - The **considered set** is the subset of the scoring set that survives the PR-only noise budget. Policy selectors that specify `scope: considered_set` operate on this post-noise-budget subset; selectors without this flag always operate on the pre-budget scoring set. The considered set is undefined for stages other than `pr` because noise budgeting is disabled elsewhere. This definition is the authoritative signal used by `docs/md/policy-format.md` to keep `require_accepted_risk` selectors deterministic.
 
 ## 8) False Positives, Exceptions, Accepted Risk Governance
 - False positives must be addressed via an exception or accepted risk, never by deleting findings.
@@ -473,7 +473,7 @@ are reflected in `decision.json` and `decision_trace`.
 - PR-only noise budget may only suppress non-hard-stop findings for `stage=pr` and never
   for `main`, `release`, or `prod`. Any attempt to enable a noise budget outside `pr`
   is a fatal policy error (see **Fatal Errors and Fail-Closed Defaults (Authoritative)** in
-  `docs/modules.md`).
+  `docs/md/modules.md`).
 
 ### Suppression Precedence (Authoritative)
 When multiple suppression mechanisms could apply to the same non-hard-stop finding
@@ -627,7 +627,7 @@ for the initial 2–3 week MVP implementation:
   reconstruct decisions (for example, specialized `governance.floor.warn` and
   `governance.expired_escalation` event types).
 - Extended audit trails on accepted risk objects beyond the minimal lifecycle information
-  required in `docs/governance-accepted-risk.md`.
+  required in `docs/md/governance-accepted-risk.md`.
 
 Later versions SHOULD implement the recommended fields and events for stronger
 auditability, but an MVP implementation that satisfies the mandatory items above is

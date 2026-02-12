@@ -23,7 +23,7 @@ const (
 	DecisionBlock DecisionType = "BLOCK"
 )
 
-// Domain categories for findings (canonical enum from docs/core-decision-engine.md)
+// Domain categories for findings (canonical enum from docs/md/core-decision-engine.md)
 type FindingDomain string
 
 const (
@@ -35,7 +35,7 @@ const (
 	DomainProvenance    FindingDomain = "PROVENANCE" // Synthetic findings for trust issues
 )
 
-// UnifiedFinding is the normalized schema from docs/core-decision-engine.md
+// UnifiedFinding is the normalized schema from docs/md/core-decision-engine.md
 type UnifiedFinding struct {
 	ID          string        `json:"id"` // Unique hash or scanner ID
 	Title       string        `json:"title"`

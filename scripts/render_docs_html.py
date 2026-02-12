@@ -3,8 +3,9 @@ import html
 import re
 from pathlib import Path
 
-DOCS_DIR = Path("docs")
-LOGO_PATH = "../images/solardome-logo2.png"
+DOCS_SRC_DIR = Path("docs/md")
+DOCS_OUT_DIR = Path("docs/html")
+LOGO_PATH = "images/solardome-logo2.png"
 
 STYLE = """
 :root {
@@ -612,10 +613,11 @@ def build_global_nav(md_files: list[Path], current_name: str) -> str:
 
 
 def main() -> None:
-    md_files = sorted(DOCS_DIR.glob("*.md"))
+    md_files = sorted(DOCS_SRC_DIR.glob("*.md"))
     if not md_files:
         print("No markdown files found in docs/")
         return
+    DOCS_OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     for md_path in md_files:
         raw = md_path.read_text(encoding="utf-8")
@@ -629,7 +631,7 @@ def main() -> None:
         docs_index = build_docs_index(md_files, md_path.name)
         nav_html = build_global_nav(md_files, md_path.name)
         html_doc = render_html(title, md_path.name, body, docs_index, nav_html)
-        out_path = md_path.with_suffix(".html")
+        out_path = DOCS_OUT_DIR / f"{md_path.stem}.html"
         out_path.write_text(html_doc, encoding="utf-8")
         print(f"Wrote {out_path}")
 

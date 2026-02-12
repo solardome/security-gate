@@ -1,10 +1,10 @@
 # Governance: Accepted Risk
 
 Authority Notice
-This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
+This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/md/core-decision-engine.md, and the policy schema lives in docs/md/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.
 
 This document defines the justification workflow for accepted risks. It is consistent
-with `docs/core-decision-engine.md` and `docs/policy-format.md`, which remain the
+with `docs/md/core-decision-engine.md` and `docs/md/policy-format.md`, which remain the
 authoritative sources for deterministic decision logic, escalation behavior, and
 suppression invariants. This document specifies **governance semantics only** (schema,
 validation, approvals, lifecycle) and MUST NOT override any normative rules in the
@@ -43,7 +43,7 @@ All fields are required unless marked optional.
 | audit | array (optional) | Append-only audit events. |
 
 Legacy-to-canonical mapping for stages is defined canonically in
-`docs/core-decision-engine.md` under **“Stage Enum (Canonical)”**. For convenience, this
+`docs/md/core-decision-engine.md` under **“Stage Enum (Canonical)”**. For convenience, this
 document uses the same canonical tokens (pr, main, release, prod) when describing
 `stage_scope`.
 
@@ -57,7 +57,7 @@ All listed fields must match if present:
 - source_scanner
 - severity
 
-**Accepted Risk vs Exception selectors:** Accepted Risk finding_selector **must** include `fingerprint` for deterministic matching. Unlike policy exceptions (which may use domain, cve_id, title_contains, etc. without fingerprint for broad false-positive suppression), accepted risks require fingerprint so that suppression and prod WARN coverage are stable across runs. The `fingerprint` key must reference the canonical fingerprint described in `docs/core-decision-engine.md`, not the scanner-provided `finding_id`. Records that omit fingerprint are governance-invalid and ignored. Supplemental keys (domain, cve_id, etc.) may narrow the match but do not substitute for fingerprint.
+**Accepted Risk vs Exception selectors:** Accepted Risk finding_selector **must** include `fingerprint` for deterministic matching. Unlike policy exceptions (which may use domain, cve_id, title_contains, etc. without fingerprint for broad false-positive suppression), accepted risks require fingerprint so that suppression and prod WARN coverage are stable across runs. The `fingerprint` key must reference the canonical fingerprint described in `docs/md/core-decision-engine.md`, not the scanner-provided `finding_id`. Records that omit fingerprint are governance-invalid and ignored. Supplemental keys (domain, cve_id, etc.) may narrow the match but do not substitute for fingerprint.
 
 ## Validation Rules
 - stage_scope and environment_scope are mandatory and non-empty.
@@ -76,7 +76,7 @@ evaluating accepted risk records:
 - **Parse/shape errors** (malformed JSON/YAML, missing required fields such as risk_id,
   stage_scope, environment_scope, expires_at, or status outside the allowed enum) are
   treated as **accepted risk parse/validation failures** and therefore as **fatal errors**
-  (see "Fatal Errors and Fail-Closed Defaults (Authoritative)" in `docs/modules.md`).
+  (see "Fatal Errors and Fail-Closed Defaults (Authoritative)" in `docs/md/modules.md`).
   - For stage=main/release/prod: fatal error ⇒ BLOCK with minimal decision.json +
     error metadata.
   - For stage=pr: fatal error ⇒ WARN (exit_code=1) with low-trust defaults ONLY if
@@ -123,7 +123,7 @@ An accepted risk is therefore considered **“active”** by the engine **only**
 - current UTC time `< expires_at`
 - current stage and environment are within `stage_scope` and `environment_scope`
 
-Detailed behavior is defined in **Precedence Rules**, **Prod WARN Coverage Requirements**, and **Expiry-Based Escalation** in this document, and in **Escalation Logic (Stage and Expiry)** and **Prod WARN Escalation and allow_warn_in_prod Coverage** in `docs/core-decision-engine.md`, plus **Deterministic Evaluation Order**, **Accepted Risk Objects (Justified Risk Acceptance)**, and **Precedence Rules** in `docs/policy-format.md`.
+Detailed behavior is defined in **Precedence Rules**, **Prod WARN Coverage Requirements**, and **Expiry-Based Escalation** in this document, and in **Escalation Logic (Stage and Expiry)** and **Prod WARN Escalation and allow_warn_in_prod Coverage** in `docs/md/core-decision-engine.md`, plus **Deterministic Evaluation Order**, **Accepted Risk Objects (Justified Risk Acceptance)**, and **Precedence Rules** in `docs/md/policy-format.md`.
 
 | Stage  | Scoring suppression (effects)                                                                 | WARN floor (HIGH/CRITICAL coverage)                                             | Prod WARN coverage (allow_warn_in_prod)                                                                                  | Expiry escalation                                                                                           | Interaction with require_accepted_risk                                                        |
 | ------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |

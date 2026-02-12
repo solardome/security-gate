@@ -323,7 +323,7 @@ tr:nth-child(even) td { background: #26170f; }
   <div class="layout">
     <div class="site-header">
       <div class="brand">
-        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <img src="images/solardome-logo2.png" alt="solardome logo">
         <div class="brand-text">
           <div class="brand-app">security-gate</div>
           <div class="brand-company">solardome</div>
@@ -345,8 +345,8 @@ tr:nth-child(even) td { background: #26170f; }
     <article class="card">
 
 <h1 id="governance-accepted-risk">Governance: Accepted Risk</h1>
-<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
-<p>This document defines the justification workflow for accepted risks. It is consistent with <code>docs/core-decision-engine.md</code> and <code>docs/policy-format.md</code>, which remain the authoritative sources for deterministic decision logic, escalation behavior, and suppression invariants. This document specifies <strong>governance semantics only</strong> (schema, validation, approvals, lifecycle) and MUST NOT override any normative rules in the core decision engine.</p>
+<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/md/core-decision-engine.md, and the policy schema lives in docs/md/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document defines the justification workflow for accepted risks. It is consistent with <code>docs/md/core-decision-engine.md</code> and <code>docs/md/policy-format.md</code>, which remain the authoritative sources for deterministic decision logic, escalation behavior, and suppression invariants. This document specifies <strong>governance semantics only</strong> (schema, validation, approvals, lifecycle) and MUST NOT override any normative rules in the core decision engine.</p>
 <h2 id="purpose">Purpose</h2>
 <ul>
 <li>Provide a time-bound, approved mechanism to accept risk.</li>
@@ -379,7 +379,7 @@ tr:nth-child(even) td { background: #26170f; }
 <tr><td>status</td><td>enum</td><td>active, expired, revoked.</td></tr>
 <tr><td>audit</td><td>array (optional)</td><td>Append-only audit events.</td></tr>
 </tbody></table>
-<p>Legacy-to-canonical mapping for stages is defined canonically in <code>docs/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong>. For convenience, this document uses the same canonical tokens (pr, main, release, prod) when describing <code>stage_scope</code>.</p>
+<p>Legacy-to-canonical mapping for stages is defined canonically in <code>docs/md/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong>. For convenience, this document uses the same canonical tokens (pr, main, release, prod) when describing <code>stage_scope</code>.</p>
 <h3 id="findingselector-keys">finding_selector Keys</h3>
 <p>All listed fields must match if present:</p>
 <ul>
@@ -391,7 +391,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>source_scanner</li>
 <li>severity</li>
 </ul>
-<p><strong>Accepted Risk vs Exception selectors:</strong> Accepted Risk finding_selector <strong>must</strong> include <code>fingerprint</code> for deterministic matching. Unlike policy exceptions (which may use domain, cve_id, title_contains, etc. without fingerprint for broad false-positive suppression), accepted risks require fingerprint so that suppression and prod WARN coverage are stable across runs. The <code>fingerprint</code> key must reference the canonical fingerprint described in <code>docs/core-decision-engine.md</code>, not the scanner-provided <code>finding_id</code>. Records that omit fingerprint are governance-invalid and ignored. Supplemental keys (domain, cve_id, etc.) may narrow the match but do not substitute for fingerprint.</p>
+<p><strong>Accepted Risk vs Exception selectors:</strong> Accepted Risk finding_selector <strong>must</strong> include <code>fingerprint</code> for deterministic matching. Unlike policy exceptions (which may use domain, cve_id, title_contains, etc. without fingerprint for broad false-positive suppression), accepted risks require fingerprint so that suppression and prod WARN coverage are stable across runs. The <code>fingerprint</code> key must reference the canonical fingerprint described in <code>docs/md/core-decision-engine.md</code>, not the scanner-provided <code>finding_id</code>. Records that omit fingerprint are governance-invalid and ignored. Supplemental keys (domain, cve_id, etc.) may narrow the match but do not substitute for fingerprint.</p>
 <h2 id="validation-rules">Validation Rules</h2>
 <ul>
 <li>stage_scope and environment_scope are mandatory and non-empty.</li>
@@ -408,7 +408,7 @@ tr:nth-child(even) td { background: #26170f; }
 <ul>
 <li><strong>Parse/shape errors</strong> (malformed JSON/YAML, missing required fields such as risk_id,</li>
 </ul>
-<p>stage_scope, environment_scope, expires_at, or status outside the allowed enum) are treated as <strong>accepted risk parse/validation failures</strong> and therefore as <strong>fatal errors</strong> (see &quot;Fatal Errors and Fail-Closed Defaults (Authoritative)&quot; in <code>docs/modules.md</code>).</p>
+<p>stage_scope, environment_scope, expires_at, or status outside the allowed enum) are treated as <strong>accepted risk parse/validation failures</strong> and therefore as <strong>fatal errors</strong> (see &quot;Fatal Errors and Fail-Closed Defaults (Authoritative)&quot; in <code>docs/md/modules.md</code>).</p>
 <ul>
 <ul>
 <li>For stage=main/release/prod: fatal error ⇒ BLOCK with minimal decision.json +</li>
@@ -473,7 +473,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>current UTC time <code>&lt; expires_at</code></li>
 <li>current stage and environment are within <code>stage_scope</code> and <code>environment_scope</code></li>
 </ul>
-<p>Detailed behavior is defined in <strong>Precedence Rules</strong>, <strong>Prod WARN Coverage Requirements</strong>, and <strong>Expiry-Based Escalation</strong> in this document, and in <strong>Escalation Logic (Stage and Expiry)</strong> and <strong>Prod WARN Escalation and allow_warn_in_prod Coverage</strong> in <code>docs/core-decision-engine.md</code>, plus <strong>Deterministic Evaluation Order</strong>, <strong>Accepted Risk Objects (Justified Risk Acceptance)</strong>, and <strong>Precedence Rules</strong> in <code>docs/policy-format.md</code>.</p>
+<p>Detailed behavior is defined in <strong>Precedence Rules</strong>, <strong>Prod WARN Coverage Requirements</strong>, and <strong>Expiry-Based Escalation</strong> in this document, and in <strong>Escalation Logic (Stage and Expiry)</strong> and <strong>Prod WARN Escalation and allow_warn_in_prod Coverage</strong> in <code>docs/md/core-decision-engine.md</code>, plus <strong>Deterministic Evaluation Order</strong>, <strong>Accepted Risk Objects (Justified Risk Acceptance)</strong>, and <strong>Precedence Rules</strong> in <code>docs/md/policy-format.md</code>.</p>
 <table><thead><tr><th>Stage</th><th>Scoring suppression (effects)</th><th>WARN floor (HIGH/CRITICAL coverage)</th><th>Prod WARN coverage (allow_warn_in_prod)</th><th>Expiry escalation</th><th>Interaction with require_accepted_risk</th></tr></thead><tbody>
 <tr><td>pr</td><td>Active, in-scope records with <code>effects</code> containing <code>suppress_from_scoring</code> may remove non-hard-stop findings from the scoring set; expired/revoked records are ignored.</td><td>Any active, in-scope record covering at least one HIGH/CRITICAL finding enforces a final outcome of at least WARN.</td><td>Not applicable (prod-only behavior).</td><td>If an accepted risk that would have applied is expired, the final outcome is at least WARN.</td><td>Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to WARN.</td></tr>
 <tr><td>main</td><td>Same as pr: active, in-scope records may suppress non-hard-stop findings; expired/revoked are ignored.</td><td>Same WARN floor: active coverage of HIGH/CRITICAL enforces a final outcome of at least WARN.</td><td>Not applicable (prod-only behavior).</td><td>If an accepted risk that would have applied is expired, the final outcome is at least WARN.</td><td>Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to BLOCK.</td></tr>

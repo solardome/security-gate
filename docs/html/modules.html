@@ -323,7 +323,7 @@ tr:nth-child(even) td { background: #26170f; }
   <div class="layout">
     <div class="site-header">
       <div class="brand">
-        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <img src="images/solardome-logo2.png" alt="solardome logo">
         <div class="brand-text">
           <div class="brand-app">security-gate</div>
           <div class="brand-company">solardome</div>
@@ -345,8 +345,8 @@ tr:nth-child(even) td { background: #26170f; }
     <article class="card">
 
 <h1 id="modules">Modules</h1>
-<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
-<p>This document specifies module responsibilities, interfaces, and operational constraints. It aligns with <code>docs/core-decision-engine.md</code> and remains implementation-agnostic.</p>
+<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/md/core-decision-engine.md, and the policy schema lives in docs/md/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document specifies module responsibilities, interfaces, and operational constraints. It aligns with <code>docs/md/core-decision-engine.md</code> and remains implementation-agnostic.</p>
 <h2 id="fatal-errors-and-fail-closed-defaults-authoritative">Fatal Errors and Fail-Closed Defaults (Authoritative)</h2>
 <p>Fatal errors are deterministic pipeline failures that make the decision non-authoritative. The following conditions are fatal:</p>
 <ul>
@@ -362,7 +362,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>stage=pr: fatal error =&gt; WARN (exit_code=1) with low-trust defaults ONLY if scanner input is present and hashable; otherwise BLOCK.</li>
 </ul>
 <p>All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.</p>
-<h2 id="cmdcli">cmd/cli</h2>
+<h2 id="cmdsecurity-gate">cmd/security-gate</h2>
 <p>Purpose:</p>
 <ul>
 <li>Orchestrate the deterministic pipeline and produce exit codes 0/1/2.</li>
@@ -469,7 +469,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Required fields must be populated; missing scan_timestamp uses ingest_time with timestamp_source=ingest, and input_sha256 must be computed at ingest.</li>
 <li>Schema validation failure is a fatal error.</li>
 <li>Cannot hash decision-affecting inputs is a fatal error.</li>
-<li>If domain cannot be mapped, emit the synthetic <code>UNKNOWN_DOMAIN_MAPPING</code> hard-stop condition as defined in <code>docs/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>, implemented as a normalized finding with <code>title=UNKNOWN_DOMAIN_MAPPING</code>, <code>domain=CONFIG</code>, and <code>severity=HIGH</code>. Record the raw domain value in decision_trace.</li>
+<li>If domain cannot be mapped, emit the synthetic <code>UNKNOWN_DOMAIN_MAPPING</code> hard-stop condition as defined in <code>docs/md/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>, implemented as a normalized finding with <code>title=UNKNOWN_DOMAIN_MAPPING</code>, <code>domain=CONFIG</code>, and <code>severity=HIGH</code>. Record the raw domain value in decision_trace.</li>
 </ul>
 <p>Logging and Traceability:</p>
 <ul>
@@ -535,7 +535,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>No policy rule can override hard-stop conditions.</li>
 <li>The exhaustive set of hard-stop conditions is defined authoritatively in</li>
 </ul>
-<p><code>docs/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>; all of these conditions bypass noise budget, cannot be suppressed, and always force BLOCK.</p>
+<p><code>docs/md/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>; all of these conditions bypass noise budget, cannot be suppressed, and always force BLOCK.</p>
 <h2 id="decisiontrace">decision_trace</h2>
 <p>Purpose:</p>
 <ul>
