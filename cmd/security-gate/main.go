@@ -63,6 +63,31 @@ type codedError struct {
 	err  error
 }
 
+type fatalHandler struct {
+	now              time.Time
+	outputDir        string
+	stage            policy.Stage
+	scannerHashable  bool
+	ctx              contextPayload
+	contextHash      string
+	policyHash       string
+	acceptedRiskHash string
+	scanHashes       map[string]string
+	scanMetadata     map[string]policy.ScanMetadata
+}
+
+type fatalSnapshot struct {
+	outputDir        string
+	ctx              contextPayload
+	contextHash      string
+	policyHash       string
+	acceptedRiskHash string
+	scanHashes       map[string]string
+	scanMetadata     map[string]policy.ScanMetadata
+	decisionStatus   domain.DecisionType
+	exitCode         int
+}
+
 func (e codedError) Error() string {
 	if e.err == nil {
 		return e.code
@@ -116,19 +141,31 @@ func main() {
 		os.Exit(2)
 	}
 
+	fatalState := fatalHandler{
+		now:       now,
+		outputDir: cfg.outputDir,
+		stage:     policy.StagePR,
+	}
+
 	ctxPayload, contextHash, err := loadContext(cfg.contextPath)
 	if err != nil {
-		fatalExit(now, cfg.outputDir, policy.StagePR, false, resolveFatalCode("CONTEXT_LOAD_FAILED", err), "context", err, contextPayload{}, "", "", "", nil, nil)
+		fatalState.fail("CONTEXT_LOAD_FAILED", "context", err)
 	}
+	fatalState.ctx = ctxPayload
+	fatalState.contextHash = contextHash
+
 	stage, declaredStage, err := resolveStage(ctxPayload, cfg.stageOverride)
 	if err != nil {
 		affected := "context.pipeline_stage"
 		if resolveFatalCode("", err) == "CLI_STAGE_INVALID" {
 			affected = "cli.--stage"
 		}
-		fatalExit(now, cfg.outputDir, stage, false, resolveFatalCode("CONTEXT_STAGE_INVALID", err), affected, err, ctxPayload, contextHash, "", "", nil, nil)
+		fatalState.stage = stage
+		fatalState.fail("CONTEXT_STAGE_INVALID", affected, err)
 	}
 	ctxPayload.PipelineStage = string(stage)
+	fatalState.ctx = ctxPayload
+	fatalState.stage = stage
 
 	ingestPaths := append([]string{}, cfg.inputs...)
 	if cfg.useStdin {
@@ -136,10 +173,13 @@ func main() {
 	}
 	ingestResult, err := trivy.Ingest(context.Background(), trivy.Stage(stage), ingestPaths)
 	if err != nil {
-		fatalExit(now, cfg.outputDir, stage, false, resolveFatalCode("INGEST_FAILED", err), "scan_input", err, ctxPayload, contextHash, "", "", nil, nil)
+		fatalState.fail("INGEST_FAILED", "scan_input", err)
 	}
+	fatalState.scannerHashable = true
+	fatalState.scanHashes = ingestResult.InputHashes
 
 	scanMetadata := buildScanMetadata(ingestResult.Findings, ingestResult.InputHashes)
+	fatalState.scanMetadata = scanMetadata
 	scanTimestamp := firstScanTimestamp(ingestResult.Findings, now)
 	trustCtx := buildTrustContext(ctxPayload, scanMetadata, scanTimestamp)
 	scoreResult := scoring.Score(ingestResult.Findings, trustCtx, now)
@@ -158,13 +198,19 @@ func main() {
 
 	effectivePolicy, policyHash, err := loadEffectivePolicy(cfg.policyPath)
 	if err != nil {
-		fatalExit(now, cfg.outputDir, stage, true, resolveFatalCode("POLICY_LOAD_FAILED", err), "policy", err, ctxPayload, contextHash, policyHash, "", ingestResult.InputHashes, scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes))
+		fatalState.policyHash = policyHash
+		fatalState.scanMetadata = scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes)
+		fatalState.fail("POLICY_LOAD_FAILED", "policy", err)
 	}
+	fatalState.policyHash = policyHash
 
 	acceptedRisks, acceptedRiskHash, err := loadAcceptedRisks(cfg.acceptedRiskPath)
 	if err != nil {
-		fatalExit(now, cfg.outputDir, stage, true, resolveFatalCode("ACCEPTED_RISK_LOAD_FAILED", err), "accepted_risks", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes))
+		fatalState.acceptedRiskHash = acceptedRiskHash
+		fatalState.scanMetadata = scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes)
+		fatalState.fail("ACCEPTED_RISK_LOAD_FAILED", "accepted_risks", err)
 	}
+	fatalState.acceptedRiskHash = acceptedRiskHash
 
 	artifact, err := policy.Evaluate(policy.EvaluationInput{
 		Stage:       stage,
@@ -193,7 +239,7 @@ func main() {
 		LLMEnabled:       cfg.llmEnabled,
 	})
 	if err != nil {
-		fatalExit(now, cfg.outputDir, stage, true, resolveFatalCode("POLICY_EVALUATION_FAILED", err), "policy_evaluator", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadata)
+		fatalState.fail("POLICY_EVALUATION_FAILED", "policy_evaluator", err)
 	}
 
 	report := decisionReport{
@@ -206,18 +252,7 @@ func main() {
 	outputDir := cfg.outputDir
 	decisionPath, summaryPath, htmlPath, err := writeReports(now, outputDir, report, artifact, ingestPaths, cfg.reportHTML)
 	if err != nil {
-		failedOutput := "report_output"
-		switch resolveFatalCode("", err) {
-		case "OUTPUT_DIR_CREATE_FAILED":
-			failedOutput = "output_dir"
-		case "DECISION_WRITE_FAILED":
-			failedOutput = "decision.json"
-		case "SUMMARY_WRITE_FAILED":
-			failedOutput = "summary.md"
-		case "HTML_WRITE_FAILED":
-			failedOutput = "report.html"
-		}
-		fatalExit(now, outputDir, stage, true, resolveFatalCode("REPORT_WRITE_FAILED", err), failedOutput, err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadata)
+		fatalState.fail("REPORT_WRITE_FAILED", reportWriteAffectedInput(err), err)
 	}
 
 	fmt.Printf("Report generated.\n- Decision JSON: %s\n- Summary: %s\n", decisionPath, summaryPath)
@@ -225,6 +260,39 @@ func main() {
 		fmt.Printf("- HTML: %s\n", htmlPath)
 	}
 	os.Exit(artifact.Decision.ExitCode)
+}
+
+func (h fatalHandler) fail(defaultCode, affectedInput string, err error) {
+	fatalExit(
+		h.now,
+		h.outputDir,
+		h.stage,
+		h.scannerHashable,
+		resolveFatalCode(defaultCode, err),
+		affectedInput,
+		err,
+		h.ctx,
+		h.contextHash,
+		h.policyHash,
+		h.acceptedRiskHash,
+		h.scanHashes,
+		h.scanMetadata,
+	)
+}
+
+func reportWriteAffectedInput(err error) string {
+	switch resolveFatalCode("", err) {
+	case "OUTPUT_DIR_CREATE_FAILED":
+		return "output_dir"
+	case "DECISION_WRITE_FAILED":
+		return "decision.json"
+	case "SUMMARY_WRITE_FAILED":
+		return "summary.md"
+	case "HTML_WRITE_FAILED":
+		return "report.html"
+	default:
+		return "report_output"
+	}
 }
 
 func resolveStage(ctx contextPayload, stageOverride string) (policy.Stage, string, error) {
@@ -359,46 +427,92 @@ func scanMetadataForFatal(findings []trivy.CanonicalFinding, hashes map[string]s
 }
 
 func fatalExit(now time.Time, outputDir string, stage policy.Stage, scannerHashable bool, errorCode, affectedInput string, cause error, ctx contextPayload, contextHash, policyHash, acceptedRiskHash string, scanHashes map[string]string, scanMetadata map[string]policy.ScanMetadata) {
-	decisionStatus := domain.DecisionBlock
-	exitCode := 2
-	if stage == policy.StagePR && scannerHashable {
-		decisionStatus = domain.DecisionWarn
-		exitCode = 1
+	snapshot := buildFatalSnapshot(now, outputDir, stage, scannerHashable, ctx, contextHash, policyHash, acceptedRiskHash, scanHashes, scanMetadata)
+
+	traceEvent := policy.DecisionTraceEvent{
+		EventID:   fmt.Sprintf("evt-%d", now.UnixNano()),
+		Timestamp: now,
+		Type:      "error.fatal",
+		Details: map[string]any{
+			"error_code":     errorCode,
+			"affected_input": affectedInput,
+			"message":        cause.Error(),
+		},
 	}
 
-	if strings.TrimSpace(outputDir) == "" {
-		outputDir = filepath.Join("reports", now.Format("20060102-150405"))
+	artifact := buildFatalArtifact(snapshot, errorCode, traceEvent)
+
+	report := decisionReport{
+		SchemaVersion:    schemaVersion,
+		ToolVersion:      toolVersion,
+		GeneratedAt:      now.Format(time.RFC3339),
+		DecisionArtifact: artifact,
 	}
-	if strings.TrimSpace(ctx.PipelineStage) == "" {
-		ctx.PipelineStage = string(stage)
-	}
-	if strings.TrimSpace(ctx.Environment) == "" {
-		ctx.Environment = defaultEnvironment
-	}
-	if strings.TrimSpace(ctx.Exposure) == "" {
-		ctx.Exposure = defaultExposure
-	}
-	if strings.TrimSpace(ctx.ChangeType) == "" {
-		ctx.ChangeType = defaultChangeType
-	}
-	if strings.TrimSpace(contextHash) == "" {
-		if hash, err := hashJSON(ctx); err == nil {
-			contextHash = hash
+
+	if err := os.MkdirAll(snapshot.outputDir, 0o755); err == nil {
+		decisionPath := filepath.Join(snapshot.outputDir, "decision.json")
+		if writeErr := writeJSON(decisionPath, report); writeErr == nil {
+			fmt.Fprintf(os.Stderr, "fatal error artifact written: %s\n", decisionPath)
 		}
 	}
-	if strings.TrimSpace(policyHash) == "" {
-		policyHash = hashBytes([]byte(embeddedDefaultPolicyRaw))
+
+	fmt.Fprintf(os.Stderr, "fatal error (%s): %v\n", errorCode, cause)
+	os.Exit(snapshot.exitCode)
+}
+
+func buildFatalSnapshot(now time.Time, outputDir string, stage policy.Stage, scannerHashable bool, ctx contextPayload, contextHash, policyHash, acceptedRiskHash string, scanHashes map[string]string, scanMetadata map[string]policy.ScanMetadata) fatalSnapshot {
+	snapshot := fatalSnapshot{
+		outputDir:        outputDir,
+		ctx:              ctx,
+		contextHash:      contextHash,
+		policyHash:       policyHash,
+		acceptedRiskHash: acceptedRiskHash,
+		scanHashes:       scanHashes,
+		scanMetadata:     scanMetadata,
+		decisionStatus:   domain.DecisionBlock,
+		exitCode:         2,
 	}
-	if strings.TrimSpace(acceptedRiskHash) == "" {
-		acceptedRiskHash = hashBytes([]byte(emptyAcceptedRisksJSON))
-	}
-	if scanHashes == nil {
-		scanHashes = map[string]string{}
-	}
-	if scanMetadata == nil {
-		scanMetadata = map[string]policy.ScanMetadata{}
+	if stage == policy.StagePR && scannerHashable {
+		snapshot.decisionStatus = domain.DecisionWarn
+		snapshot.exitCode = 1
 	}
 
+	if strings.TrimSpace(snapshot.outputDir) == "" {
+		snapshot.outputDir = filepath.Join("reports", now.Format("20060102-150405"))
+	}
+	if strings.TrimSpace(snapshot.ctx.PipelineStage) == "" {
+		snapshot.ctx.PipelineStage = string(stage)
+	}
+	if strings.TrimSpace(snapshot.ctx.Environment) == "" {
+		snapshot.ctx.Environment = defaultEnvironment
+	}
+	if strings.TrimSpace(snapshot.ctx.Exposure) == "" {
+		snapshot.ctx.Exposure = defaultExposure
+	}
+	if strings.TrimSpace(snapshot.ctx.ChangeType) == "" {
+		snapshot.ctx.ChangeType = defaultChangeType
+	}
+	if strings.TrimSpace(snapshot.contextHash) == "" {
+		if hash, err := hashJSON(snapshot.ctx); err == nil {
+			snapshot.contextHash = hash
+		}
+	}
+	if strings.TrimSpace(snapshot.policyHash) == "" {
+		snapshot.policyHash = hashBytes([]byte(embeddedDefaultPolicyRaw))
+	}
+	if strings.TrimSpace(snapshot.acceptedRiskHash) == "" {
+		snapshot.acceptedRiskHash = hashBytes([]byte(emptyAcceptedRisksJSON))
+	}
+	if snapshot.scanHashes == nil {
+		snapshot.scanHashes = map[string]string{}
+	}
+	if snapshot.scanMetadata == nil {
+		snapshot.scanMetadata = map[string]policy.ScanMetadata{}
+	}
+	return snapshot
+}
+
+func buildFatalScans(scanHashes map[string]string, scanMetadata map[string]policy.ScanMetadata) []policy.ScanInput {
 	scans := make([]policy.ScanInput, 0, len(scanHashes))
 	for path, hash := range scanHashes {
 		meta := scanMetadata[path]
@@ -415,43 +529,35 @@ func fatalExit(now time.Time, outputDir string, stage policy.Stage, scannerHasha
 		})
 	}
 	sort.Slice(scans, func(i, j int) bool { return scans[i].Path < scans[j].Path })
+	return scans
+}
 
-	traceEvent := policy.DecisionTraceEvent{
-		EventID:   fmt.Sprintf("evt-%d", now.UnixNano()),
-		Timestamp: now,
-		Type:      "error.fatal",
-		Details: map[string]any{
-			"error_code":     errorCode,
-			"affected_input": affectedInput,
-			"message":        cause.Error(),
-		},
-	}
-
-	artifact := policy.DecisionArtifact{
+func buildFatalArtifact(snapshot fatalSnapshot, errorCode string, traceEvent policy.DecisionTraceEvent) policy.DecisionArtifact {
+	return policy.DecisionArtifact{
 		Inputs: policy.DecisionInputs{
-			Scans: scans,
+			Scans: buildFatalScans(snapshot.scanHashes, snapshot.scanMetadata),
 			Context: policy.ContextRef{
 				InputRef: policy.InputRef{
-					SHA256: contextHash,
+					SHA256: snapshot.contextHash,
 					Source: "context",
 				},
 				Payload: policy.ContextPayload{
-					PipelineStage:         ctx.PipelineStage,
-					Environment:           ctx.Environment,
-					Exposure:              ctx.Exposure,
-					ChangeType:            ctx.ChangeType,
-					ScannerVersion:        ctx.ScannerVersion,
-					ArtifactSigningStatus: ctx.ArtifactSigningStatus,
-					ProvenanceLevel:       ctx.ProvenanceLevel,
-					BranchProtected:       ctx.BranchProtected,
+					PipelineStage:         snapshot.ctx.PipelineStage,
+					Environment:           snapshot.ctx.Environment,
+					Exposure:              snapshot.ctx.Exposure,
+					ChangeType:            snapshot.ctx.ChangeType,
+					ScannerVersion:        snapshot.ctx.ScannerVersion,
+					ArtifactSigningStatus: snapshot.ctx.ArtifactSigningStatus,
+					ProvenanceLevel:       snapshot.ctx.ProvenanceLevel,
+					BranchProtected:       snapshot.ctx.BranchProtected,
 				},
 			},
 			Policy: policy.InputRef{
-				SHA256: policyHash,
+				SHA256: snapshot.policyHash,
 				Source: "policy",
 			},
 			AcceptedRisks: policy.InputRef{
-				SHA256: acceptedRiskHash,
+				SHA256: snapshot.acceptedRiskHash,
 				Source: "accepted_risks",
 			},
 		},
@@ -472,8 +578,8 @@ func fatalExit(now time.Time, outputDir string, stage policy.Stage, scannerHasha
 			},
 		},
 		Decision: policy.PolicyDecision{
-			Status:    decisionStatus,
-			ExitCode:  exitCode,
+			Status:    snapshot.decisionStatus,
+			ExitCode:  snapshot.exitCode,
 			Rationale: fmt.Sprintf("fatal error: %s", errorCode),
 		},
 		Policy: policy.PolicyEvaluation{
@@ -495,23 +601,6 @@ func fatalExit(now time.Time, outputDir string, stage policy.Stage, scannerHasha
 			References:       nil,
 		},
 	}
-
-	report := decisionReport{
-		SchemaVersion:    schemaVersion,
-		ToolVersion:      toolVersion,
-		GeneratedAt:      now.Format(time.RFC3339),
-		DecisionArtifact: artifact,
-	}
-
-	if err := os.MkdirAll(outputDir, 0o755); err == nil {
-		decisionPath := filepath.Join(outputDir, "decision.json")
-		if writeErr := writeJSON(decisionPath, report); writeErr == nil {
-			fmt.Fprintf(os.Stderr, "fatal error artifact written: %s\n", decisionPath)
-		}
-	}
-
-	fmt.Fprintf(os.Stderr, "fatal error (%s): %v\n", errorCode, cause)
-	os.Exit(exitCode)
 }
 
 func hashJSON(value any) (string, error) {

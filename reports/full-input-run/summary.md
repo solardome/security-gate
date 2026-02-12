@@ -1,15 +1,14 @@
 # security-gate summary
 
-- Inputs: `examples/full-input/trivy-report-full.json`
+- Inputs: `input/trivy-report-full.json`
 - Decision: **BLOCK** (exit_code=2)
 - Release risk: 100
-- Trust score: 82
+- Trust score: 94
 - Findings: 4 total, 0 hard-stop, 3 considered
 
 ## Recommended Next Steps
 - `FIX_VULN`
 - `MITIGATE_NO_FIX`
-- `REFRESH_SCAN`
 
 ## Issue Statuses
 | finding_id | fingerprint | domain | severity | risk_score | status |

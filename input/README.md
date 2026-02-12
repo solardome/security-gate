@@ -13,10 +13,10 @@ This folder contains a complete end-to-end test input set for `security-gate` wi
 
 ```bash
 ./main \
-  --input examples/full-input/trivy-report-full.json \
-  --context examples/full-input/context-full.json \
-  --policy examples/full-input/policy-full.json \
-  --accepted-risk examples/full-input/accepted-risks-full.json \
+  --input input/trivy-report-full.json \
+  --context input/context-full.json \
+  --policy input/policy-full.json \
+  --accepted-risk input/accepted-risks-full.json \
   --output-dir reports/full-input-run \
   --report-html
 ```

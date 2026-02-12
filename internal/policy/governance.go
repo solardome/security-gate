@@ -32,91 +32,7 @@ func runGovernance(input EvaluationInput, stage Stage) governanceResult {
 	}
 
 	allFindings := append([]scoring.ScoredFinding(nil), input.ScoreResult.Findings...)
-	severityByFingerprint := make(map[string]string, len(allFindings))
-	for _, f := range allFindings {
-		severityByFingerprint[f.Finding.Fingerprint] = f.Finding.Severity
-	}
-
-	for _, ar := range input.AcceptedRisks {
-		fingerprint := strings.TrimSpace(ar.FindingSelector.Fingerprint)
-		if fingerprint == "" {
-			result.events = append(result.events, governanceWarning(ar.RiskID, "missing fingerprint", input.Now))
-			continue
-		}
-		if !stageInScope(stage, ar.StageScope) {
-			continue
-		}
-		if len(ar.EnvironmentScope) > 0 && !stringInSlice(input.Environment, ar.EnvironmentScope) {
-			continue
-		}
-		if hasHardStopDomain(ar.FindingSelector.Domain) && hasEffect(ar.Effects, "suppress_from_scoring") {
-			result.events = append(result.events, governanceWarning(ar.RiskID, "cannot suppress hard-stop domains", input.Now))
-			continue
-		}
-
-		expiresAt, err := time.Parse(time.RFC3339, ar.ExpiresAt)
-		if err != nil {
-			result.events = append(result.events, governanceWarning(ar.RiskID, "invalid expires_at", input.Now))
-			continue
-		}
-
-		status := strings.ToLower(strings.TrimSpace(ar.Status))
-		now := input.Now
-
-		matched := []string{fingerprint}
-		severity := severityForFingerprint(ar.FindingSelector.Severity, severityByFingerprint, fingerprint)
-
-		if status == "revoked" {
-			result.events = append(result.events, governanceWarning(ar.RiskID, "revoked", now))
-			result.events = append(result.events, acceptedRiskStatusChangeEvent(ar, matched, "revoked", "status=revoked", now))
-			continue
-		}
-
-		if !now.Before(expiresAt) || status == "expired" {
-			reason := "expires_at reached"
-			if status == "expired" {
-				reason = "status=expired"
-			}
-			result.events = append(result.events, governanceWarning(ar.RiskID, reason, now))
-			result.events = append(result.events, acceptedRiskStatusChangeEvent(ar, matched, "expired", reason, now))
-			if isHighSeverity(severity) {
-				if stage == StageRelease || stage == StageProd {
-					result.expiredEscalation = true
-				} else if stage == StagePR || stage == StageMain {
-					result.expiredWarnFloor = true
-				}
-			}
-			continue
-		}
-
-		if status != "active" {
-			result.events = append(result.events, governanceWarning(ar.RiskID, "status must be active/expired/revoked", now))
-			continue
-		}
-
-		if needsSecurityApproval(stage, ar.StageScope, severity) && !hasSecurityApproval(ar.Approvals) {
-			result.events = append(result.events, governanceWarning(ar.RiskID, "missing security approval", now))
-			continue
-		}
-
-		result.coverage[ar.RiskID] = append(result.coverage[ar.RiskID], matched...)
-		result.fingerprintCoverage[fingerprint] = true
-		result.appliedRiskIDs = appendIfMissing(result.appliedRiskIDs, ar.RiskID)
-		if ar.AllowWarnInProd {
-			result.allowWarnCoverage[fingerprint] = true
-		}
-		if isHighSeverity(severity) {
-			result.warnFloor = true
-		}
-
-		if hasEffect(ar.Effects, "suppress_from_scoring") {
-			for idx := range allFindings {
-				if allFindings[idx].Finding.Fingerprint == fingerprint && !allFindings[idx].SuppressedByAcceptedRisk {
-					allFindings[idx].SuppressedByAcceptedRisk = true
-				}
-			}
-		}
-	}
+	applyAcceptedRisks(input, stage, &result, allFindings, severityByFingerprint(allFindings))
 
 	suppressed := make([]string, 0)
 	for _, f := range allFindings {
@@ -144,6 +60,116 @@ func runGovernance(input EvaluationInput, stage Stage) governanceResult {
 	result.allFindings = allFindings
 
 	return result
+}
+
+func applyAcceptedRisks(input EvaluationInput, stage Stage, result *governanceResult, allFindings []scoring.ScoredFinding, severityMap map[string]string) {
+	for _, ar := range input.AcceptedRisks {
+		fingerprint := strings.TrimSpace(ar.FindingSelector.Fingerprint)
+		if fingerprint == "" {
+			result.events = append(result.events, governanceWarning(ar.RiskID, "missing fingerprint", input.Now))
+			continue
+		}
+		if !acceptedRiskInScope(ar, stage, input.Environment) {
+			continue
+		}
+		if hasHardStopDomain(ar.FindingSelector.Domain) && hasEffect(ar.Effects, "suppress_from_scoring") {
+			result.events = append(result.events, governanceWarning(ar.RiskID, "cannot suppress hard-stop domains", input.Now))
+			continue
+		}
+
+		expiresAt, err := time.Parse(time.RFC3339, ar.ExpiresAt)
+		if err != nil {
+			result.events = append(result.events, governanceWarning(ar.RiskID, "invalid expires_at", input.Now))
+			continue
+		}
+
+		status := strings.ToLower(strings.TrimSpace(ar.Status))
+		now := input.Now
+		matched := []string{fingerprint}
+		severity := severityForFingerprint(ar.FindingSelector.Severity, severityMap, fingerprint)
+
+		if status == "revoked" {
+			result.events = append(result.events, governanceWarning(ar.RiskID, "revoked", now))
+			result.events = append(result.events, acceptedRiskStatusChangeEvent(ar, matched, "revoked", "status=revoked", now))
+			continue
+		}
+
+		if !now.Before(expiresAt) || status == "expired" {
+			reason := "expires_at reached"
+			if status == "expired" {
+				reason = "status=expired"
+			}
+			result.events = append(result.events, governanceWarning(ar.RiskID, reason, now))
+			result.events = append(result.events, acceptedRiskStatusChangeEvent(ar, matched, "expired", reason, now))
+			applyExpiredEscalation(result, stage, severity)
+			continue
+		}
+
+		if status != "active" {
+			result.events = append(result.events, governanceWarning(ar.RiskID, "status must be active/expired/revoked", now))
+			continue
+		}
+		if needsSecurityApproval(stage, ar.StageScope, severity) && !hasSecurityApproval(ar.Approvals) {
+			result.events = append(result.events, governanceWarning(ar.RiskID, "missing security approval", now))
+			continue
+		}
+
+		recordAcceptedRiskCoverage(result, ar, fingerprint, severity)
+		if hasEffect(ar.Effects, "suppress_from_scoring") {
+			suppressByFingerprint(allFindings, fingerprint)
+		}
+	}
+}
+
+func severityByFingerprint(findings []scoring.ScoredFinding) map[string]string {
+	severity := make(map[string]string, len(findings))
+	for _, f := range findings {
+		severity[f.Finding.Fingerprint] = f.Finding.Severity
+	}
+	return severity
+}
+
+func acceptedRiskInScope(ar AcceptedRisk, stage Stage, environment string) bool {
+	if !stageInScope(stage, ar.StageScope) {
+		return false
+	}
+	if len(ar.EnvironmentScope) > 0 && !stringInSlice(environment, ar.EnvironmentScope) {
+		return false
+	}
+	return true
+}
+
+func applyExpiredEscalation(result *governanceResult, stage Stage, severity string) {
+	if !isHighSeverity(severity) {
+		return
+	}
+	if stage == StageRelease || stage == StageProd {
+		result.expiredEscalation = true
+		return
+	}
+	if stage == StagePR || stage == StageMain {
+		result.expiredWarnFloor = true
+	}
+}
+
+func recordAcceptedRiskCoverage(result *governanceResult, ar AcceptedRisk, fingerprint, severity string) {
+	result.coverage[ar.RiskID] = append(result.coverage[ar.RiskID], fingerprint)
+	result.fingerprintCoverage[fingerprint] = true
+	result.appliedRiskIDs = appendIfMissing(result.appliedRiskIDs, ar.RiskID)
+	if ar.AllowWarnInProd {
+		result.allowWarnCoverage[fingerprint] = true
+	}
+	if isHighSeverity(severity) {
+		result.warnFloor = true
+	}
+}
+
+func suppressByFingerprint(findings []scoring.ScoredFinding, fingerprint string) {
+	for idx := range findings {
+		if findings[idx].Finding.Fingerprint == fingerprint && !findings[idx].SuppressedByAcceptedRisk {
+			findings[idx].SuppressedByAcceptedRisk = true
+		}
+	}
 }
 
 func applyExceptions(stage Stage, environment string, findings []scoring.ScoredFinding, exceptions []Exception, now time.Time) ([]scoring.ScoredFinding, []string, []DecisionTraceEvent) {

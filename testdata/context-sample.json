@@ -1,0 +1,12 @@
+{
+  "payload": {
+    "pipeline_stage": "release",
+    "environment": "staging",
+    "exposure": "internal",
+    "change_type": "moderate",
+    "scanner_version": "0.58.1",
+    "artifact_signing_status": "verified",
+    "provenance_level": "level2",
+    "branch_protected": true
+  }
+}

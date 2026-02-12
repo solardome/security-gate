@@ -77,30 +77,7 @@ func Evaluate(input EvaluationInput) (DecisionArtifact, error) {
 	}
 	policyResult.evaluation.AllowWarnInProdApplied = allowWarnUsed
 
-	if governance.warnFloor && policyResult.decision.Status == domain.DecisionAllow {
-		policyResult.decision.Status = domain.DecisionWarn
-		policyResult.decision.ExitCode = 1
-		policyResult.decision.Rationale += "; warn floor enforced"
-	}
-
-	if governance.expiredWarnFloor && (stage == StagePR || stage == StageMain) && policyResult.decision.Status == domain.DecisionAllow {
-		policyResult.decision.Status = domain.DecisionWarn
-		policyResult.decision.ExitCode = 1
-		policyResult.decision.Rationale += "; expired accepted risk warn floor enforced"
-		traceEvents = append(traceEvents, newDecisionTraceEvent("governance.expired_warn_floor", map[string]any{"reason": "expired accepted risk would have covered HIGH/CRITICAL"}, input.Now))
-	}
-
-	if governance.expiredEscalation && (stage == StageRelease || stage == StageProd) {
-		policyResult.decision.Status = domain.DecisionBlock
-		policyResult.decision.ExitCode = 2
-		traceEvents = append(traceEvents, newDecisionTraceEvent("governance.expired_escalation", map[string]any{"reason": "expired accepted risk would have covered HIGH/CRITICAL"}, input.Now))
-	}
-
-	if hasHardStop(input.ScoreResult.Findings) {
-		policyResult.decision.Status = domain.DecisionBlock
-		policyResult.decision.ExitCode = 2
-		policyResult.decision.Rationale = "hard-stop condition"
-	}
+	policyResult.decision, traceEvents = applyGovernanceEscalations(policyResult.decision, governance, stage, input.ScoreResult.Findings, traceEvents, input.Now)
 
 	traceEvents = append(traceEvents, newDecisionTraceEvent("decision.final", map[string]any{"status": policyResult.decision.Status, "release_risk": releaseRisk, "trust_score": input.ScoreResult.TrustScore}, input.Now))
 
@@ -111,72 +88,7 @@ func Evaluate(input EvaluationInput) (DecisionArtifact, error) {
 	artifact.Decision = policyResult.decision
 	artifact.Policy = policyResult.evaluation
 	artifact.RecommendedSteps = mergeRecommendedSteps(input, policyResult.extraSteps)
-
-	llmCounts := llm.LLMCounts{
-		Total:          artifact.Findings.TotalCount,
-		HardStop:       artifact.Findings.HardStopCount,
-		MaxFindingRisk: maxFindingRisk,
-	}
-	llmContext := llm.LLMContext{
-		Stage:      string(stage),
-		Exposure:   input.Exposure,
-		ChangeType: input.ChangeType,
-	}
-	findingSummaries := make([]llm.LLMFindingSummary, 0, len(input.ScoreResult.Findings))
-	for _, scored := range input.ScoreResult.Findings {
-		findingSummaries = append(findingSummaries, llm.LLMFindingSummary{
-			FindingID:   scored.Finding.FindingID,
-			Fingerprint: scored.Finding.Fingerprint,
-			Title:       scored.Finding.Title,
-			Domain:      scored.Finding.Domain,
-			Severity:    scored.Finding.Severity,
-		})
-	}
-	traceEventIDs := make([]string, 0, len(traceEvents))
-	for _, event := range traceEvents {
-		if event.EventID != "" {
-			traceEventIDs = append(traceEventIDs, event.EventID)
-		}
-	}
-	sanitized := llm.BuildSanitizedRequest(llm.LLMInputParams{
-		DecisionStatus:    string(policyResult.decision.Status),
-		DecisionRationale: policyResult.decision.Rationale,
-		Counts:            llmCounts,
-		RecommendedSteps:  artifact.RecommendedSteps,
-		Context:           llmContext,
-		FindingSummaries:  findingSummaries,
-		TraceEventIDs:     traceEventIDs,
-		Timestamp:         input.Now,
-	})
-
-	redactionEvents := make([]DecisionTraceRedactionEvent, 0, len(sanitized.Redactions))
-	for _, record := range sanitized.Redactions {
-		redactionEvents = append(redactionEvents, DecisionTraceRedactionEvent{
-			EventID:       record.EventID,
-			Timestamp:     record.Timestamp,
-			RedactedField: record.RedactedField,
-			Reason:        record.Reason,
-			SanitizedRef:  record.SanitizedRef,
-			OriginalHash:  record.OriginalHash,
-		})
-	}
-
-	var redactionMeta *DecisionTraceRedaction
-	if len(redactionEvents) > 0 {
-		redactionMeta = &DecisionTraceRedaction{Events: redactionEvents}
-	}
-
-	artifact.LLMExplanation = LLMExplanation{
-		Enabled:          input.LLMEnabled,
-		NonAuthoritative: true,
-		ContentRef:       sanitized.ContentRef,
-		SanitizedPrompt:  sanitized.Prompt,
-		References:       sanitized.References,
-	}
-	artifact.Trace = DecisionTrace{
-		Events:    traceEvents,
-		Redaction: redactionMeta,
-	}
+	artifact.LLMExplanation, artifact.Trace = buildLLMAndTrace(input, stage, artifact, maxFindingRisk, policyResult.decision, traceEvents)
 
 	return artifact, nil
 }
@@ -186,4 +98,111 @@ type policyResult struct {
 	evaluation PolicyEvaluation
 	events     []DecisionTraceEvent
 	extraSteps []string
+}
+
+func applyGovernanceEscalations(decision PolicyDecision, governance governanceResult, stage Stage, findings []scoring.ScoredFinding, traceEvents []DecisionTraceEvent, now time.Time) (PolicyDecision, []DecisionTraceEvent) {
+	if governance.warnFloor && decision.Status == domain.DecisionAllow {
+		decision.Status = domain.DecisionWarn
+		decision.ExitCode = 1
+		decision.Rationale += "; warn floor enforced"
+	}
+
+	if governance.expiredWarnFloor && (stage == StagePR || stage == StageMain) && decision.Status == domain.DecisionAllow {
+		decision.Status = domain.DecisionWarn
+		decision.ExitCode = 1
+		decision.Rationale += "; expired accepted risk warn floor enforced"
+		traceEvents = append(traceEvents, newDecisionTraceEvent("governance.expired_warn_floor", map[string]any{"reason": "expired accepted risk would have covered HIGH/CRITICAL"}, now))
+	}
+
+	if governance.expiredEscalation && (stage == StageRelease || stage == StageProd) {
+		decision.Status = domain.DecisionBlock
+		decision.ExitCode = 2
+		traceEvents = append(traceEvents, newDecisionTraceEvent("governance.expired_escalation", map[string]any{"reason": "expired accepted risk would have covered HIGH/CRITICAL"}, now))
+	}
+
+	if hasHardStop(findings) {
+		decision.Status = domain.DecisionBlock
+		decision.ExitCode = 2
+		decision.Rationale = "hard-stop condition"
+	}
+
+	return decision, traceEvents
+}
+
+func buildLLMAndTrace(input EvaluationInput, stage Stage, artifact DecisionArtifact, maxFindingRisk int, decision PolicyDecision, traceEvents []DecisionTraceEvent) (LLMExplanation, DecisionTrace) {
+	sanitized := llm.BuildSanitizedRequest(llm.LLMInputParams{
+		DecisionStatus:    string(decision.Status),
+		DecisionRationale: decision.Rationale,
+		Counts: llm.LLMCounts{
+			Total:          artifact.Findings.TotalCount,
+			HardStop:       artifact.Findings.HardStopCount,
+			MaxFindingRisk: maxFindingRisk,
+		},
+		RecommendedSteps: artifact.RecommendedSteps,
+		Context: llm.LLMContext{
+			Stage:      string(stage),
+			Exposure:   input.Exposure,
+			ChangeType: input.ChangeType,
+		},
+		FindingSummaries: buildLLMFindingSummaries(input.ScoreResult.Findings),
+		TraceEventIDs:    collectTraceEventIDs(traceEvents),
+		Timestamp:        input.Now,
+	})
+
+	llmExplanation := LLMExplanation{
+		Enabled:          input.LLMEnabled,
+		NonAuthoritative: true,
+		ContentRef:       sanitized.ContentRef,
+		SanitizedPrompt:  sanitized.Prompt,
+		References:       sanitized.References,
+	}
+
+	trace := DecisionTrace{
+		Events:    traceEvents,
+		Redaction: buildRedactionMeta(sanitized.Redactions),
+	}
+
+	return llmExplanation, trace
+}
+
+func buildLLMFindingSummaries(findings []scoring.ScoredFinding) []llm.LLMFindingSummary {
+	summaries := make([]llm.LLMFindingSummary, 0, len(findings))
+	for _, scored := range findings {
+		summaries = append(summaries, llm.LLMFindingSummary{
+			FindingID:   scored.Finding.FindingID,
+			Fingerprint: scored.Finding.Fingerprint,
+			Title:       scored.Finding.Title,
+			Domain:      scored.Finding.Domain,
+			Severity:    scored.Finding.Severity,
+		})
+	}
+	return summaries
+}
+
+func collectTraceEventIDs(events []DecisionTraceEvent) []string {
+	ids := make([]string, 0, len(events))
+	for _, event := range events {
+		if event.EventID != "" {
+			ids = append(ids, event.EventID)
+		}
+	}
+	return ids
+}
+
+func buildRedactionMeta(redactions []llm.RedactionRecord) *DecisionTraceRedaction {
+	if len(redactions) == 0 {
+		return nil
+	}
+	events := make([]DecisionTraceRedactionEvent, 0, len(redactions))
+	for _, record := range redactions {
+		events = append(events, DecisionTraceRedactionEvent{
+			EventID:       record.EventID,
+			Timestamp:     record.Timestamp,
+			RedactedField: record.RedactedField,
+			Reason:        record.Reason,
+			SanitizedRef:  record.SanitizedRef,
+			OriginalHash:  record.OriginalHash,
+		})
+	}
+	return &DecisionTraceRedaction{Events: events}
 }

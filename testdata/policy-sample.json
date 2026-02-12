@@ -1,0 +1,16 @@
+{
+  "policy_version": "fixture-v1",
+  "requires_signed_artifact": true,
+  "requires_provenance_level": "level2",
+  "rules": [
+    {
+      "id": "R-PR-NOISE",
+      "description": "Apply PR noise budget.",
+      "stage_scope": ["pr"],
+      "when": {},
+      "then": {
+        "noise_budget_top_k": 5
+      }
+    }
+  ]
+}
