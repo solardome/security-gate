@@ -120,23 +120,13 @@ func main() {
 	if err != nil {
 		fatalExit(now, cfg.outputDir, policy.StagePR, false, resolveFatalCode("CONTEXT_LOAD_FAILED", err), "context", err, contextPayload{}, "", "", "", nil, nil)
 	}
-	declaredStage := strings.TrimSpace(ctxPayload.PipelineStage)
-	stage := policy.StagePR
-	if declaredStage != "" {
-		stage, err = parseStage(ctxPayload.PipelineStage)
-		if err != nil {
-			overrideStage, parseErr := parseStage(strings.TrimSpace(cfg.stageOverride))
-			if parseErr == nil {
-				stage = overrideStage
-			}
-			fatalExit(now, cfg.outputDir, stage, false, resolveFatalCode("CONTEXT_STAGE_INVALID", err), "context.pipeline_stage", err, ctxPayload, contextHash, "", "", nil, nil)
+	stage, declaredStage, err := resolveStage(ctxPayload, cfg.stageOverride)
+	if err != nil {
+		affected := "context.pipeline_stage"
+		if resolveFatalCode("", err) == "CLI_STAGE_INVALID" {
+			affected = "cli.--stage"
 		}
-	}
-	if strings.TrimSpace(cfg.stageOverride) != "" {
-		stage, err = parseStage(cfg.stageOverride)
-		if err != nil {
-			fatalExit(now, cfg.outputDir, stage, false, resolveFatalCode("CLI_STAGE_INVALID", err), "cli.--stage", err, ctxPayload, contextHash, "", "", nil, nil)
-		}
+		fatalExit(now, cfg.outputDir, stage, false, resolveFatalCode("CONTEXT_STAGE_INVALID", err), affected, err, ctxPayload, contextHash, "", "", nil, nil)
 	}
 	ctxPayload.PipelineStage = string(stage)
 
@@ -166,26 +156,14 @@ func main() {
 		})
 	}
 
-	effectivePolicy := policy.Policy{
-		PolicyVersion: "embedded-default",
-		Rules:         []policy.Rule{},
-		Exceptions:    []policy.Exception{},
-	}
-	policyHash := hashBytes([]byte(embeddedDefaultPolicyRaw))
-	if cfg.policyPath != "" {
-		effectivePolicy, policyHash, err = loadPolicy(cfg.policyPath)
-		if err != nil {
-			fatalExit(now, cfg.outputDir, stage, true, resolveFatalCode("POLICY_LOAD_FAILED", err), "policy", err, ctxPayload, contextHash, policyHash, "", ingestResult.InputHashes, scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes))
-		}
+	effectivePolicy, policyHash, err := loadEffectivePolicy(cfg.policyPath)
+	if err != nil {
+		fatalExit(now, cfg.outputDir, stage, true, resolveFatalCode("POLICY_LOAD_FAILED", err), "policy", err, ctxPayload, contextHash, policyHash, "", ingestResult.InputHashes, scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes))
 	}
 
-	acceptedRisks := []policy.AcceptedRisk(nil)
-	acceptedRiskHash := hashBytes([]byte(emptyAcceptedRisksJSON))
-	if cfg.acceptedRiskPath != "" {
-		acceptedRisks, acceptedRiskHash, err = policy.LoadAcceptedRisks(cfg.acceptedRiskPath)
-		if err != nil {
-			fatalExit(now, cfg.outputDir, stage, true, resolveFatalCode("ACCEPTED_RISK_LOAD_FAILED", err), "accepted_risks", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes))
-		}
+	acceptedRisks, acceptedRiskHash, err := loadAcceptedRisks(cfg.acceptedRiskPath)
+	if err != nil {
+		fatalExit(now, cfg.outputDir, stage, true, resolveFatalCode("ACCEPTED_RISK_LOAD_FAILED", err), "accepted_risks", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadataForFatal(ingestResult.Findings, ingestResult.InputHashes))
 	}
 
 	artifact, err := policy.Evaluate(policy.EvaluationInput{
@@ -226,29 +204,20 @@ func main() {
 	}
 
 	outputDir := cfg.outputDir
-	if outputDir == "" {
-		outputDir = filepath.Join("reports", now.Format("20060102-150405"))
-	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		fatalExit(now, outputDir, stage, true, resolveFatalCode("OUTPUT_DIR_CREATE_FAILED", err), "output_dir", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadata)
-	}
-
-	decisionPath := filepath.Join(outputDir, "decision.json")
-	if err := writeJSON(decisionPath, report); err != nil {
-		fatalExit(now, outputDir, stage, true, resolveFatalCode("DECISION_WRITE_FAILED", err), "decision.json", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadata)
-	}
-
-	summaryPath := filepath.Join(outputDir, "summary.md")
-	if err := os.WriteFile(summaryPath, []byte(buildSummary(artifact, ingestPaths)), 0o644); err != nil {
-		fatalExit(now, outputDir, stage, true, resolveFatalCode("SUMMARY_WRITE_FAILED", err), "summary.md", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadata)
-	}
-
-	htmlPath := ""
-	if cfg.reportHTML {
-		htmlPath = filepath.Join(outputDir, "report.html")
-		if err := writeHTMLReport(htmlPath, artifact, ingestPaths); err != nil {
-			fatalExit(now, outputDir, stage, true, resolveFatalCode("HTML_WRITE_FAILED", err), "report.html", err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadata)
+	decisionPath, summaryPath, htmlPath, err := writeReports(now, outputDir, report, artifact, ingestPaths, cfg.reportHTML)
+	if err != nil {
+		failedOutput := "report_output"
+		switch resolveFatalCode("", err) {
+		case "OUTPUT_DIR_CREATE_FAILED":
+			failedOutput = "output_dir"
+		case "DECISION_WRITE_FAILED":
+			failedOutput = "decision.json"
+		case "SUMMARY_WRITE_FAILED":
+			failedOutput = "summary.md"
+		case "HTML_WRITE_FAILED":
+			failedOutput = "report.html"
 		}
+		fatalExit(now, outputDir, stage, true, resolveFatalCode("REPORT_WRITE_FAILED", err), failedOutput, err, ctxPayload, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes, scanMetadata)
 	}
 
 	fmt.Printf("Report generated.\n- Decision JSON: %s\n- Summary: %s\n", decisionPath, summaryPath)
@@ -256,6 +225,89 @@ func main() {
 		fmt.Printf("- HTML: %s\n", htmlPath)
 	}
 	os.Exit(artifact.Decision.ExitCode)
+}
+
+func resolveStage(ctx contextPayload, stageOverride string) (policy.Stage, string, error) {
+	declaredStage := strings.TrimSpace(ctx.PipelineStage)
+	stage := policy.StagePR
+	if declaredStage != "" {
+		parsed, err := parseStage(declaredStage)
+		if err != nil {
+			if overrideStage, parseErr := parseStage(strings.TrimSpace(stageOverride)); parseErr == nil {
+				stage = overrideStage
+			}
+			return stage, declaredStage, withErrorCode("CONTEXT_STAGE_INVALID", err)
+		}
+		stage = parsed
+	}
+
+	if strings.TrimSpace(stageOverride) != "" {
+		overrideStage, err := parseStage(stageOverride)
+		if err != nil {
+			return stage, declaredStage, withErrorCode("CLI_STAGE_INVALID", err)
+		}
+		stage = overrideStage
+	}
+
+	return stage, declaredStage, nil
+}
+
+func loadEffectivePolicy(path string) (policy.Policy, string, error) {
+	defaultPolicy := policy.Policy{
+		PolicyVersion: "embedded-default",
+		Rules:         []policy.Rule{},
+		Exceptions:    []policy.Exception{},
+	}
+	defaultHash := hashBytes([]byte(embeddedDefaultPolicyRaw))
+	if strings.TrimSpace(path) == "" {
+		return defaultPolicy, defaultHash, nil
+	}
+
+	loaded, hash, err := loadPolicy(path)
+	if err != nil {
+		return defaultPolicy, hash, err
+	}
+	return loaded, hash, nil
+}
+
+func loadAcceptedRisks(path string) ([]policy.AcceptedRisk, string, error) {
+	defaultHash := hashBytes([]byte(emptyAcceptedRisksJSON))
+	if strings.TrimSpace(path) == "" {
+		return nil, defaultHash, nil
+	}
+	loaded, hash, err := policy.LoadAcceptedRisks(path)
+	if err != nil {
+		return nil, hash, err
+	}
+	return loaded, hash, nil
+}
+
+func writeReports(now time.Time, outputDir string, report decisionReport, artifact policy.DecisionArtifact, inputPaths []string, includeHTML bool) (string, string, string, error) {
+	if strings.TrimSpace(outputDir) == "" {
+		outputDir = filepath.Join("reports", now.Format("20060102-150405"))
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return "", "", "", withErrorCode("OUTPUT_DIR_CREATE_FAILED", err)
+	}
+
+	decisionPath := filepath.Join(outputDir, "decision.json")
+	if err := writeJSON(decisionPath, report); err != nil {
+		return "", "", "", withErrorCode("DECISION_WRITE_FAILED", err)
+	}
+
+	summaryPath := filepath.Join(outputDir, "summary.md")
+	if err := os.WriteFile(summaryPath, []byte(buildSummary(artifact, inputPaths)), 0o644); err != nil {
+		return "", "", "", withErrorCode("SUMMARY_WRITE_FAILED", err)
+	}
+
+	htmlPath := ""
+	if includeHTML {
+		htmlPath = filepath.Join(outputDir, "report.html")
+		if err := writeHTMLReport(htmlPath, artifact, inputPaths); err != nil {
+			return "", "", "", withErrorCode("HTML_WRITE_FAILED", err)
+		}
+	}
+	return decisionPath, summaryPath, htmlPath, nil
 }
 
 func firstScanTimestamp(findings []trivy.CanonicalFinding, fallback time.Time) time.Time {
