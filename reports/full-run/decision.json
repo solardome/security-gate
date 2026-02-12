@@ -1,0 +1,204 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "generated_at": "2026-02-08T09:46:47Z",
+  "inputs": {
+    "scans": [
+      {
+        "source_scanner": "testdata/trivy-report-sample.json",
+        "source_version": "0.58.1",
+        "input_sha256": "1c1c390dadbd856087f53a352b2f602ffbad8c71c2c061b7712e06a83536c23a",
+        "scan_timestamp": "2026-02-08T10:00:00Z",
+        "path": "testdata/trivy-report-sample.json"
+      }
+    ],
+    "context": {
+      "sha256": "691c303b9d78648510386086308127e33056d4ee3db8cf51577c63207dc5cf26",
+      "source": "context"
+    },
+    "policy": {
+      "sha256": "0a31396a3166f81c3b74950833b36fe28e8b1d8a426fa208953f758dc7a3f01e",
+      "source": "policy"
+    },
+    "accepted_risks": {
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "source": "accepted_risks"
+    }
+  },
+  "trust": {
+    "trust_score": 33,
+    "trust_signals": {
+      "ScannerPinned": {
+        "Score": 0.2,
+        "Raw": "pinned=false"
+      },
+      "ScanFreshness": {
+        "Score": 0.2,
+        "Raw": "timestamp=2026-02-08 10:00:00 +0000 UTC"
+      },
+      "InputIntegrity": {
+        "Score": 1,
+        "Raw": "verified"
+      },
+      "ArtifactSigning": {
+        "Score": 0.2,
+        "Raw": "unknown"
+      },
+      "ProvenanceLevel": {
+        "Score": 0.2,
+        "Raw": "unknown"
+      },
+      "BuildContext": {
+        "Score": 0.3,
+        "Raw": "protected=\u003cnil\u003e"
+      }
+    },
+    "trust_modifier": 10
+  },
+  "findings": {
+    "total_count": 2,
+    "hard_stop_count": 0,
+    "considered_count": 2,
+    "suppressed_by_noise_budget": 0,
+    "items": [
+      {
+        "Finding": {
+          "finding_id": "CVE-2026-12345",
+          "fingerprint": "04d42764b49781b1b94f85a6c7e82d07f02bff047cef0e3f0bf83a4572e9bd21",
+          "domain": "VULNERABILITY",
+          "severity": "HIGH",
+          "title": "OpenSSL sample vulnerability",
+          "description": "Sample vulnerability entry for local testing.",
+          "source_scanner": "trivy",
+          "source_version": "0.58.1",
+          "input_sha256": "1c1c390dadbd856087f53a352b2f602ffbad8c71c2c061b7712e06a83536c23a",
+          "scan_timestamp": "2026-02-08T10:00:00Z",
+          "timestamp_source": "scanner",
+          "location": {
+            "path": "sample-image:1.0.0 (alpine 3.20)",
+            "package": "openssl",
+            "file": "sample-image:1.0.0 (alpine 3.20)"
+          },
+          "evidence_ref": "sample-image:1.0.0 (alpine 3.20):CVE-2026-12345",
+          "cve_id": "CVE-2026-12345",
+          "cvss_v3": 8.8,
+          "fix_available": "true",
+          "fix_version": "3.0.2-r0",
+          "remediation_hint": "https://example.com/advisories/CVE-2026-12345"
+        },
+        "RiskScore": 100,
+        "BaseScore": 88,
+        "Modifiers": {
+          "ExploitMaturity": 5,
+          "Reachability": 5,
+          "FixAvailable": 0,
+          "DependencyScope": 3,
+          "LicenseType": 0
+        },
+        "HardStop": false,
+        "HardStopReason": "cvss",
+        "SuppressedByAcceptedRisk": false,
+        "SuppressedByException": false,
+        "SuppressedByNoiseBudget": false
+      },
+      {
+        "Finding": {
+          "finding_id": "AVD-AWS-0001",
+          "fingerprint": "de60ff0d36b62484aa3c8e17fd70a06ac0f2fad9431de31014421fa93a4749e3",
+          "domain": "CONFIG",
+          "severity": "MEDIUM",
+          "title": "Public S3 bucket",
+          "description": "S3 bucket allows public read access.",
+          "source_scanner": "trivy",
+          "source_version": "0.58.1",
+          "input_sha256": "1c1c390dadbd856087f53a352b2f602ffbad8c71c2c061b7712e06a83536c23a",
+          "scan_timestamp": "2026-02-08T10:00:00Z",
+          "timestamp_source": "scanner",
+          "location": {
+            "path": "iac/main.tf",
+            "file": "iac/main.tf"
+          },
+          "evidence_ref": "iac/main.tf:AVD-AWS-0001",
+          "remediation_hint": "S3 bucket should not be publicly readable."
+        },
+        "RiskScore": 66,
+        "BaseScore": 50,
+        "Modifiers": {
+          "ExploitMaturity": 5,
+          "Reachability": 5,
+          "FixAvailable": 3,
+          "DependencyScope": 3,
+          "LicenseType": 0
+        },
+        "HardStop": false,
+        "HardStopReason": "severity",
+        "SuppressedByAcceptedRisk": false,
+        "SuppressedByException": false,
+        "SuppressedByNoiseBudget": false
+      }
+    ]
+  },
+  "scoring": {
+    "release_risk": 100,
+    "modifiers": {
+      "stage_modifier": 5,
+      "exposure_modifier": 5,
+      "change_modifier": 3,
+      "trust_modifier": 10
+    }
+  },
+  "decision": {
+    "status": "BLOCK",
+    "exit_code": 2,
+    "rationale": "stage=main release_risk=100 trust_score=33"
+  },
+  "policy": {
+    "evaluated_rules": null,
+    "exceptions_applied": [],
+    "accepted_risks_applied": [],
+    "accepted_risks_coverage": {},
+    "allow_warn_in_prod_applied": false,
+    "policy_version": "example-v1"
+  },
+  "recommended_next_steps": [
+    "FIX_VULN",
+    "PIN_SCANNER",
+    "REFRESH_SCAN",
+    "IMPROVE_TRUST"
+  ],
+  "decision_trace": {
+    "events": [
+      {
+        "event_id": "trace-event-1",
+        "timestamp": "2026-02-08T09:46:47.46702Z",
+        "type": "scoring.scan_timestamp_future",
+        "details": {
+          "message": "scan timestamp \u003e5m in future",
+          "scan_timestamp": "2026-02-08T10:00:00Z"
+        }
+      },
+      {
+        "event_id": "trace-event-2",
+        "timestamp": "2026-02-08T09:46:47.465872Z",
+        "type": "decision.final",
+        "details": {
+          "release_risk": 100,
+          "status": "BLOCK",
+          "trust_score": 33
+        }
+      }
+    ]
+  },
+  "llm_explanation": {
+    "enabled": true,
+    "non_authoritative": true,
+    "content_ref": "llm-prompt-1770544007465872000",
+    "sanitized_prompt": "\"\"\"\nYou are an explanation assistant for security-gate.\nYour job is to rephrase the deterministic decision and steps provided.\nYou MUST NOT change the decision, invent new actions, or suggest policy changes.\nUse only the provided inputs. If information is missing, say so.\n\nDecision status: BLOCK\nDeterministic rationale: stage=main release_risk=100 trust_score=33 (total findings=2; hard_stop=0; max_finding_risk=100)\nRecommended next steps (authoritative): FIX_VULN (Upgrade to fix_version or patched release.); PIN_SCANNER (Pin scanner version and record in context.); REFRESH_SCAN (Re-run scanner to refresh data.); IMPROVE_TRUST (Add missing provenance signals or protected CI.)\nContext: stage=main, exposure=internal, change_type=moderate\nFinding summaries: CVE-2026-12345/04d42764b49781b1b94f85a6c7e82d07f02bff047cef0e3f0bf83a4572e9bd21 OpenSSL sample vulnerability (severity=HIGH domain=VULNERABILITY); AVD-AWS-0001/de60ff0d36b62484aa3c8e17fd70a06ac0f2fad9431de31014421fa93a4749e3 Public S3 bucket (severity=MEDIUM domain=CONFIG)\n\nProduce:\n- A short explanation suitable for developers.\n- A numbered list of the same recommended_next_steps (no additions).\n- A note that this text is non-authoritative.\n\"\"\"\n",
+    "references": [
+      "AVD-AWS-0001",
+      "CVE-2026-12345",
+      "trace-event-1",
+      "trace-event-2"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "payload": {
+    "pipeline_stage": "pr",
+    "environment": "dev",
+    "exposure": "internal",
+    "change_type": "moderate"
+  }
+}

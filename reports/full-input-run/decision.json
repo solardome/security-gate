@@ -1,0 +1,349 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "dev",
+  "generated_at": "2026-02-12T08:03:18Z",
+  "inputs": {
+    "scans": [
+      {
+        "source_scanner": "trivy",
+        "source_version": "0.52.2",
+        "input_sha256": "5d999188307c9eeb566a47ac0d4de1fdb95aa1a02bc81937d96495c95b885b3c",
+        "scan_timestamp": "2026-02-12T09:10:00Z",
+        "path": "examples/full-input/trivy-report-full.json"
+      }
+    ],
+    "context": {
+      "sha256": "89116f65257d465e26fc4551b8c16af3fc94aa96ebf474388a426377af49c2d9",
+      "source": "context",
+      "payload": {
+        "pipeline_stage": "release",
+        "environment": "staging",
+        "exposure": "internal",
+        "change_type": "moderate",
+        "scanner_version": "0.52.2",
+        "artifact_signing_status": "verified",
+        "provenance_level": "level2",
+        "branch_protected": true
+      }
+    },
+    "policy": {
+      "sha256": "60f40114033f5733ac7cef1287c8284da9489a33a3f633eb4fbc0e3f984c5ca6",
+      "source": "policy"
+    },
+    "accepted_risks": {
+      "sha256": "80ec6f9febe5b0d4ac1d691739f76f96e4e5f6cc8177081070a4c9cc91123331",
+      "source": "accepted_risks"
+    }
+  },
+  "trust": {
+    "trust_score": 82,
+    "trust_signals": {
+      "ScannerPinned": {
+        "Score": 1,
+        "Raw": "pinned=true"
+      },
+      "ScanFreshness": {
+        "Score": 0.2,
+        "Raw": "timestamp=2026-02-12 09:10:00 +0000 UTC"
+      },
+      "InputIntegrity": {
+        "Score": 1,
+        "Raw": "verified"
+      },
+      "ArtifactSigning": {
+        "Score": 1,
+        "Raw": "verified"
+      },
+      "ProvenanceLevel": {
+        "Score": 0.7,
+        "Raw": "level2"
+      },
+      "BuildContext": {
+        "Score": 1,
+        "Raw": "protected=0x1400001054e"
+      }
+    },
+    "trust_modifier": 0
+  },
+  "findings": {
+    "total_count": 4,
+    "hard_stop_count": 0,
+    "considered_count": 3,
+    "suppressed_by_noise_budget": 0,
+    "items": [
+      {
+        "Finding": {
+          "finding_id": "CVE-2024-10001",
+          "fingerprint": "87760c1a55296679e5f8382024e14c6ecaa7af4c21503a076cffb115dd5b0641",
+          "domain": "VULNERABILITY",
+          "severity": "HIGH",
+          "title": "Example vulnerable dependency",
+          "description": "The package has an exploitable issue in request parsing.",
+          "source_scanner": "trivy",
+          "source_version": "0.52.2",
+          "input_sha256": "5d999188307c9eeb566a47ac0d4de1fdb95aa1a02bc81937d96495c95b885b3c",
+          "scan_timestamp": "2026-02-12T09:10:00Z",
+          "timestamp_source": "scanner",
+          "location": {
+            "path": "app/backend/package-lock.json",
+            "package": "example-lib",
+            "file": "app/backend/package-lock.json"
+          },
+          "evidence_ref": "app/backend/package-lock.json:CVE-2024-10001",
+          "cve_id": "CVE-2024-10001",
+          "cvss_v3": 8.8,
+          "fix_available": "true",
+          "fix_version": "1.2.5",
+          "remediation_hint": "https://security.example.com/CVE-2024-10001"
+        },
+        "RiskScore": 100,
+        "BaseScore": 88,
+        "Modifiers": {
+          "ExploitMaturity": 5,
+          "Reachability": 5,
+          "FixAvailable": 0,
+          "DependencyScope": 3,
+          "LicenseType": 0
+        },
+        "HardStop": false,
+        "HardStopReason": "cvss",
+        "SuppressedByAcceptedRisk": true,
+        "SuppressedByException": false,
+        "SuppressedByNoiseBudget": false
+      },
+      {
+        "Finding": {
+          "finding_id": "CVE-2023-77777",
+          "fingerprint": "4cbbaac351fbcee5560df7cf180a71ca2c8d791d53bc29a0b3826de7ad2ca404",
+          "domain": "VULNERABILITY",
+          "severity": "CRITICAL",
+          "title": "Critical RCE in legacy parser",
+          "description": "Remote code execution via crafted payload.",
+          "source_scanner": "trivy",
+          "source_version": "0.52.2",
+          "input_sha256": "5d999188307c9eeb566a47ac0d4de1fdb95aa1a02bc81937d96495c95b885b3c",
+          "scan_timestamp": "2026-02-12T09:10:00Z",
+          "timestamp_source": "scanner",
+          "location": {
+            "path": "app/backend/package-lock.json",
+            "package": "legacy-parser",
+            "file": "app/backend/package-lock.json"
+          },
+          "evidence_ref": "app/backend/package-lock.json:CVE-2023-77777",
+          "cve_id": "CVE-2023-77777",
+          "cvss_v3": 10,
+          "fix_available": "false",
+          "remediation_hint": "https://security.example.com/CVE-2023-77777"
+        },
+        "RiskScore": 100,
+        "BaseScore": 100,
+        "Modifiers": {
+          "ExploitMaturity": 5,
+          "Reachability": 5,
+          "FixAvailable": 5,
+          "DependencyScope": 3,
+          "LicenseType": 0
+        },
+        "HardStop": false,
+        "HardStopReason": "cvss",
+        "SuppressedByAcceptedRisk": false,
+        "SuppressedByException": false,
+        "SuppressedByNoiseBudget": false
+      },
+      {
+        "Finding": {
+          "finding_id": "KSV001",
+          "fingerprint": "1ea37a6352857b369f56c8ff0b0f31998ec162cce45a74f9f7cc1f4c7b2bb76a",
+          "domain": "CONFIG",
+          "severity": "MEDIUM",
+          "title": "Container runs as root",
+          "description": "securityContext.runAsNonRoot is not set to true",
+          "source_scanner": "trivy",
+          "source_version": "0.52.2",
+          "input_sha256": "5d999188307c9eeb566a47ac0d4de1fdb95aa1a02bc81937d96495c95b885b3c",
+          "scan_timestamp": "2026-02-12T09:10:00Z",
+          "timestamp_source": "scanner",
+          "location": {
+            "path": "infra/k8s/deployment.yaml",
+            "file": "infra/k8s/deployment.yaml"
+          },
+          "evidence_ref": "infra/k8s/deployment.yaml:KSV001",
+          "remediation_hint": "Set runAsNonRoot: true"
+        },
+        "RiskScore": 66,
+        "BaseScore": 50,
+        "Modifiers": {
+          "ExploitMaturity": 5,
+          "Reachability": 5,
+          "FixAvailable": 3,
+          "DependencyScope": 3,
+          "LicenseType": 0
+        },
+        "HardStop": false,
+        "HardStopReason": "severity",
+        "SuppressedByAcceptedRisk": false,
+        "SuppressedByException": false,
+        "SuppressedByNoiseBudget": false
+      },
+      {
+        "Finding": {
+          "finding_id": "KSV002",
+          "fingerprint": "13d6c4a4d3d3b333d30b17cf9161365e288f223741f9a33b3e70836269f62796",
+          "domain": "CONFIG",
+          "severity": "LOW",
+          "title": "Capabilities are not dropped",
+          "description": "Container allows default Linux capabilities",
+          "source_scanner": "trivy",
+          "source_version": "0.52.2",
+          "input_sha256": "5d999188307c9eeb566a47ac0d4de1fdb95aa1a02bc81937d96495c95b885b3c",
+          "scan_timestamp": "2026-02-12T09:10:00Z",
+          "timestamp_source": "scanner",
+          "location": {
+            "path": "infra/k8s/deployment.yaml",
+            "file": "infra/k8s/deployment.yaml"
+          },
+          "evidence_ref": "infra/k8s/deployment.yaml:KSV002",
+          "remediation_hint": "Drop unnecessary capabilities"
+        },
+        "RiskScore": 41,
+        "BaseScore": 25,
+        "Modifiers": {
+          "ExploitMaturity": 5,
+          "Reachability": 5,
+          "FixAvailable": 3,
+          "DependencyScope": 3,
+          "LicenseType": 0
+        },
+        "HardStop": false,
+        "HardStopReason": "severity",
+        "SuppressedByAcceptedRisk": false,
+        "SuppressedByException": false,
+        "SuppressedByNoiseBudget": false
+      }
+    ]
+  },
+  "scoring": {
+    "release_risk": 100,
+    "modifiers": {
+      "stage_modifier": 10,
+      "exposure_modifier": 5,
+      "change_modifier": 3,
+      "trust_modifier": 0
+    }
+  },
+  "decision": {
+    "status": "BLOCK",
+    "exit_code": 2,
+    "rationale": "stage=release release_risk=100 trust_score=82"
+  },
+  "policy": {
+    "evaluated_rules": null,
+    "exceptions_applied": [],
+    "accepted_risks_applied": [
+      "AR-2026-0001"
+    ],
+    "accepted_risks_coverage": {
+      "AR-2026-0001": [
+        "87760c1a55296679e5f8382024e14c6ecaa7af4c21503a076cffb115dd5b0641"
+      ]
+    },
+    "allow_warn_in_prod_applied": false,
+    "policy_version": "full-test-v1"
+  },
+  "recommended_next_steps": [
+    "FIX_VULN",
+    "MITIGATE_NO_FIX",
+    "REFRESH_SCAN"
+  ],
+  "decision_trace": {
+    "events": [
+      {
+        "event_id": "trace-event-1",
+        "timestamp": "2026-02-12T08:03:18.502687Z",
+        "type": "scoring.scan_timestamp_future",
+        "details": {
+          "message": "scan timestamp \u003e5m in future",
+          "scan_timestamp": "2026-02-12T09:10:00Z"
+        }
+      },
+      {
+        "event_id": "trace-event-2",
+        "timestamp": "2026-02-12T08:03:18.502101Z",
+        "type": "governance.warning",
+        "details": {
+          "reason": "status=expired",
+          "risk_id": "AR-2025-0999"
+        }
+      },
+      {
+        "event_id": "trace-event-3",
+        "timestamp": "2026-02-12T08:03:18.502101Z",
+        "type": "accepted_risk.status_change",
+        "details": {
+          "environment_scope": [
+            "staging",
+            "prod"
+          ],
+          "matched_fingerprints": [
+            "expired-risk-example-fingerprint"
+          ],
+          "reason": "status=expired",
+          "risk_id": "AR-2025-0999",
+          "stage_scope": [
+            "release",
+            "prod"
+          ],
+          "status": "expired"
+        }
+      },
+      {
+        "event_id": "trace-event-4",
+        "timestamp": "2026-02-12T08:03:18.502101Z",
+        "type": "governance.applied",
+        "details": {
+          "suppressed_by": "accepted_risk",
+          "suppressed_count": 1,
+          "suppressed_fingerprints": [
+            "87760c1a55296679e5f8382024e14c6ecaa7af4c21503a076cffb115dd5b0641"
+          ]
+        }
+      },
+      {
+        "event_id": "trace-event-5",
+        "timestamp": "2026-02-12T08:03:18.502101Z",
+        "type": "governance.expired_escalation",
+        "details": {
+          "reason": "expired accepted risk would have covered HIGH/CRITICAL"
+        }
+      },
+      {
+        "event_id": "trace-event-6",
+        "timestamp": "2026-02-12T08:03:18.502101Z",
+        "type": "decision.final",
+        "details": {
+          "release_risk": 100,
+          "status": "BLOCK",
+          "trust_score": 82
+        }
+      }
+    ]
+  },
+  "llm_explanation": {
+    "enabled": false,
+    "non_authoritative": true,
+    "content_ref": "llm-prompt-1770883398502101000",
+    "sanitized_prompt": "\"\"\"\nYou are an explanation assistant for security-gate.\nYour job is to rephrase the deterministic decision and steps provided.\nYou MUST NOT change the decision, invent new actions, or suggest policy changes.\nUse only the provided inputs. If information is missing, say so.\n\nDecision status: BLOCK\nDeterministic rationale: stage=release release_risk=100 trust_score=82 (total findings=4; hard_stop=0; max_finding_risk=100)\nRecommended next steps (authoritative): FIX_VULN (Upgrade to fix_version or patched release.); MITIGATE_NO_FIX (Apply compensating controls and open vendor ticket.); REFRESH_SCAN (Re-run scanner to refresh data.)\nContext: stage=release, exposure=internal, change_type=moderate\nFinding summaries: CVE-2024-10001/87760c1a55296679e5f8382024e14c6ecaa7af4c21503a076cffb115dd5b0641 Example vulnerable dependency (severity=HIGH domain=VULNERABILITY); CVE-2023-77777/4cbbaac351fbcee5560df7cf180a71ca2c8d791d53bc29a0b3826de7ad2ca404 Critical RCE in legacy parser (severity=CRITICAL domain=VULNERABILITY); KSV001/1ea37a6352857b369f56c8ff0b0f31998ec162cce45a74f9f7cc1f4c7b2bb76a Container runs as root (severity=MEDIUM domain=CONFIG); KSV002/13d6c4a4d3d3b333d30b17cf9161365e288f223741f9a33b3e70836269f62796 Capabilities are not dropped (severity=LOW domain=CONFIG)\n\nProduce:\n- A short explanation suitable for developers.\n- A numbered list of the same recommended_next_steps (no additions).\n- A note that this text is non-authoritative.\n\"\"\"\n",
+    "references": [
+      "CVE-2023-77777",
+      "CVE-2024-10001",
+      "KSV001",
+      "KSV002",
+      "trace-event-1",
+      "trace-event-2",
+      "trace-event-3",
+      "trace-event-4",
+      "trace-event-5",
+      "trace-event-6"
+    ]
+  }
+}

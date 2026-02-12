@@ -1,0 +1,52 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "sample-image:1.0.0",
+  "ArtifactType": "container_image",
+  "Metadata": {
+    "Timestamp": "2026-02-08T10:00:00Z",
+    "ScannerVersion": "0.58.1"
+  },
+  "Scanner": {
+    "Name": "Trivy",
+    "Version": "0.58.1"
+  },
+  "Results": [
+    {
+      "Target": "sample-image:1.0.0 (alpine 3.20)",
+      "Type": "os-pkgs",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2026-12345",
+          "PkgName": "openssl",
+          "InstalledVersion": "3.0.0-r0",
+          "FixedVersion": "3.0.2-r0",
+          "Severity": "HIGH",
+          "Title": "OpenSSL sample vulnerability",
+          "Description": "Sample vulnerability entry for local testing.",
+          "PrimaryURL": "https://example.com/advisories/CVE-2026-12345",
+          "CVSS": [
+            {
+              "Version": "3.1",
+              "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "BaseScore": 8.8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Target": "iac/main.tf",
+      "Type": "misconfig",
+      "Misconfigurations": [
+        {
+          "ID": "AVD-AWS-0001",
+          "Title": "Public S3 bucket",
+          "Description": "S3 bucket allows public read access.",
+          "Message": "S3 bucket should not be publicly readable.",
+          "Severity": "MEDIUM",
+          "PrimaryURL": "https://example.com/misconfig/AVD-AWS-0001"
+        }
+      ]
+    }
+  ]
+}

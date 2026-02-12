@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM Boundary</title>
+  <style>:root {
+  --bg: #120c08;
+  --panel: #1d1410;
+  --ink: #ffe7c2;
+  --muted: #d2a777;
+  --accent: #ff9f2f;
+  --accent-soft: #3a2416;
+  --line: #5e3a22;
+  --code-bg: #120b07;
+  --code-ink: #ffd8a8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 520px at 0% 0%, #ff8b2f55 0%, transparent 60%),
+    radial-gradient(760px 460px at 100% 0%, #ffbf3f2e 0%, transparent 62%),
+    radial-gradient(860px 480px at 50% 100%, #ff6a0035 0%, transparent 65%),
+    var(--bg);
+}
+.layout {
+  width: min(1100px, calc(100vw - 2.4rem));
+  margin: 1.2rem auto 2rem;
+}
+.site-header {
+  padding: 0.85rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(27, 17, 12, 0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.brand img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #2a1a12;
+  padding: 2px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-app {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.brand-company {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: #ffb24a;
+  text-decoration: none;
+  font-weight: 600;
+}
+.site-nav a:hover {
+  text-decoration: underline;
+}
+.header {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(40, 25, 17, 0.82);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+}
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.2rem, 2.5vw, 1.7rem);
+}
+.header p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+.card {
+  background: var(--panel);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 35px -28px rgba(12, 35, 66, 0.45);
+  padding: clamp(1rem, 2.4vw, 2rem);
+}
+.doc-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+.doc-link {
+  display: block;
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: #2b1a11;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+.doc-link:hover {
+  border-color: #a05b22;
+  background: #3a2316;
+}
+.doc-link-title {
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+.doc-link-file {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.pipeline-diagram {
+  margin: 0.7rem 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #25170f 0%, #1b120d 100%);
+}
+.pipeline-main {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+.pipeline-step {
+  flex: 1 1 0;
+  border: 1px solid #6b4127;
+  border-radius: 10px;
+  background: #2b1a11;
+  padding: 0.6rem;
+  min-width: 0;
+}
+.pipeline-step-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.pipeline-step-sub {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+.pipeline-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb24a;
+  font-weight: 700;
+}
+.pipeline-branch-wrap {
+  margin-top: 0.55rem;
+  border-top: 1px dashed #7d4e2f;
+  padding-top: 0.55rem;
+}
+.pipeline-branch {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0.6rem;
+  align-items: start;
+}
+.pipeline-branch-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pipeline-branch-arrow {
+  color: #ffb24a;
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+.pipeline-note {
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.25;
+}
+h1 { font-size: 2rem; }
+h2 {
+  font-size: 1.35rem;
+  border-bottom: 2px solid #4d2f1b;
+  padding-bottom: 0.2rem;
+}
+h3 { font-size: 1.08rem; }
+p { margin: 0.45rem 0 0.95rem; }
+a {
+  color: #ffb24a;
+  text-underline-offset: 3px;
+}
+code {
+  background: #2d1a11;
+  border: 1px solid #6a4328;
+  padding: 0.1rem 0.32rem;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+pre {
+  margin: 0.75rem 0 1rem;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.9rem;
+  border-radius: 10px;
+  overflow: auto;
+  border: 1px solid #5a3a24;
+}
+pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+ul, ol {
+  margin: 0.35rem 0 1rem 1.25rem;
+  padding: 0;
+}
+li { margin: 0.3rem 0; }
+li input[type="checkbox"] {
+  pointer-events: none;
+  margin-right: 0.45rem;
+  transform: translateY(1px);
+}
+blockquote {
+  margin: 0.8rem 0 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.15rem 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.2rem;
+  font-size: 0.95rem;
+}
+thead tr { background: #3a2316; }
+th, td {
+  border: 1px solid var(--line);
+  padding: 0.52rem 0.58rem;
+  text-align: left;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: #26170f; }
+@media (max-width: 760px) {
+  .layout { width: min(1100px, calc(100vw - 1rem)); }
+  .site-header {
+    padding: 0.75rem 0.85rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .card { padding: 0.8rem; }
+  .doc-links { grid-template-columns: 1fr; }
+  .pipeline-main {
+    flex-direction: column;
+  }
+  .pipeline-arrow {
+    transform: rotate(90deg);
+  }
+  .pipeline-branch-wrap {
+    border-top: 0;
+    padding-top: 0.2rem;
+  }
+  .pipeline-branch {
+    grid-template-columns: 1fr;
+  }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  td {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding-left: 0.7rem;
+  }
+  tr { margin-bottom: 0.6rem; }
+}</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="site-header">
+      <div class="brand">
+        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <div class="brand-text">
+          <div class="brand-app">security-gate</div>
+          <div class="brand-company">solardome</div>
+        </div>
+      </div>
+      <nav class="site-nav">
+<a href="architecture.html">Architecture</a>
+<a href="core-decision-engine.html">Core Decision Engine</a>
+<a href="governance-accepted-risk.html">Governance: Accepted Risk</a>
+<a href="llm-boundary.html" aria-current="page">LLM Boundary</a>
+<a href="modules.html">Modules</a>
+<a href="policy-format.html">Policy Format</a>
+      </nav>
+    </div>
+    <div class="header">
+      <h1>LLM Boundary</h1>
+      <p>Generated from llm-boundary.md</p>
+    </div>
+    <article class="card">
+
+<h1 id="llm-boundary">LLM Boundary</h1>
+<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document specifies the boundary between deterministic decision logic and optional LLM-based explanation. It is consistent with <code>docs/core-decision-engine.md</code>.</p>
+<h2 id="threat-model">Threat Model</h2>
+<ul>
+<li>Prompt injection via scanner outputs or metadata.</li>
+<li>Data exfiltration of secrets or sensitive source content.</li>
+<li>Hallucinated policy changes or unauthorized remediation steps.</li>
+<li>Social engineering attempts embedded in findings or package metadata.</li>
+</ul>
+<h2 id="what-is-sent-to-the-llm-allowlist">What Is Sent to the LLM (Allowlist)</h2>
+<p>Only sanitized, minimal data derived from the decision trace:</p>
+<ul>
+<li>Decision status (ALLOW/WARN/BLOCK) and deterministic rationale summary.</li>
+<li>Aggregated counts (total findings, hard-stop count, max_finding_risk).</li>
+<li>Deterministic recommended_next_steps (IDs and short descriptions).</li>
+<li>High-level context (pipeline_stage, exposure, change_type).</li>
+<li>Non-sensitive finding summaries (title + severity + domain) with IDs only.</li>
+</ul>
+<h2 id="what-is-never-sent-denylist">What Is Never Sent (Denylist)</h2>
+<ul>
+<li>Raw scanner outputs or full JSON blobs.</li>
+<li>Secrets, tokens, credentials, or secret-like patterns.</li>
+<li>Full file contents, diffs, or source code.</li>
+<li>CI environment variables or system paths.</li>
+<li>Any data not present in the decision trace allowlist.</li>
+</ul>
+<h2 id="redaction-and-minimization-rules">Redaction and Minimization Rules</h2>
+<ul>
+<li>Strip or mask any suspected secrets (replace with [REDACTED]).</li>
+<li>Truncate free-text fields to a safe length.</li>
+<li>Remove URLs, stack traces, or inline code from LLM input.</li>
+<li>Allowlist only approved fields; drop everything else.</li>
+<li>Record all redactions in the decision_trace.</li>
+</ul>
+<h2 id="safe-prompt-template-explanation-only">Safe Prompt Template (Explanation-Only)</h2>
+<p>This is a conceptual template; it must be used verbatim in intent.</p>
+<p>&quot;&quot;&quot; You are an explanation assistant for security-gate. Your job is to rephrase the deterministic decision and steps provided. You MUST NOT change the decision, invent new actions, or suggest policy changes. Use only the provided inputs. If information is missing, say so.</p>
+<p>Decision status: {decision_status} Deterministic rationale: {decision_rationale} Recommended next steps (authoritative): {recommended_next_steps} Context: stage={pipeline_stage}, exposure={exposure}, change_type={change_type} Finding summaries: {finding_summaries}</p>
+<p>Produce:</p>
+<ul>
+<li>A short explanation suitable for developers.</li>
+<li>A numbered list of the same recommended_next_steps (no additions).</li>
+<li>A note that this text is non-authoritative.</li>
+</ul>
+<p>&quot;&quot;&quot;</p>
+<h2 id="output-schema-non-authoritative">Output Schema (Non-Authoritative)</h2>
+<p>The LLM output is a separate artifact referenced from decision.json. It must be clearly labeled and must not introduce new actions.</p>
+<p>Minimum fields:</p>
+<ul>
+<li>non_authoritative: true</li>
+<li>decision_status: ALLOW | WARN | BLOCK (copied)</li>
+<li>explanation: string</li>
+<li>recommended_next_steps: array of step IDs (subset of decision.json)</li>
+<li>references: array of finding_id or decision_trace event IDs</li>
+</ul>
+<p>decision.json must include:</p>
+<ul>
+<li>llm_explanation.enabled: boolean</li>
+<li>llm_explanation.non_authoritative: true</li>
+<li>llm_explanation.content_ref: string (path or identifier for the LLM artifact)</li>
+</ul>
+<h2 id="grounding-and-labeling">Grounding and Labeling</h2>
+<ul>
+<li>All LLM text must cite deterministic inputs by ID, not raw data.</li>
+<li>Every LLM artifact must include the label: &quot;Non-authoritative explanation.&quot;</li>
+<li>Any mismatch with decision.json is treated as an LLM error and ignored.</li>
+</ul>
+<h2 id="acceptance-criteria">Acceptance Criteria</h2>
+<ul>
+<li><input type="checkbox" > Threat model includes prompt injection and data exfiltration risks.</li>
+<li><input type="checkbox" > Allowlist and denylist are explicit and conservative.</li>
+<li><input type="checkbox" > Redaction and minimization rules are defined.</li>
+<li><input type="checkbox" > Safe prompt template enforces explanation-only behavior.</li>
+<li><input type="checkbox" > Output schema aligns with decision.json and is non-authoritative.</li>
+<li><input type="checkbox" > Grounding and labeling requirements are explicit.</li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>

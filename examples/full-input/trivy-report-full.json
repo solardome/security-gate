@@ -1,0 +1,109 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "ghcr.io/solardome/security-gate-demo:1.0.0",
+  "ArtifactType": "container_image",
+  "Metadata": {
+    "Timestamp": "2026-02-12T09:10:00Z",
+    "ScanTime": "2026-02-12T09:10:00Z",
+    "scan_timestamp": "2026-02-12T09:10:00Z",
+    "LastScannedAt": "2026-02-12T09:10:00Z",
+    "ScannerVersion": "0.52.2",
+    "Scanner": {
+      "Name": "Trivy",
+      "Version": "0.52.2",
+      "Release": "stable"
+    }
+  },
+  "Scanner": {
+    "Name": "Trivy",
+    "Version": "0.52.2",
+    "Release": "stable"
+  },
+  "Results": [
+    {
+      "Target": "app/backend/package-lock.json",
+      "Source": "npm",
+      "Type": "npm",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-10001",
+          "PkgName": "example-lib",
+          "PkgVersion": "1.2.0",
+          "InstalledVersion": "1.2.0",
+          "FixedVersion": "1.2.5",
+          "Severity": "HIGH",
+          "Title": "Example vulnerable dependency",
+          "Description": "The package has an exploitable issue in request parsing.",
+          "PrimaryURL": "https://security.example.com/CVE-2024-10001",
+          "References": [
+            "https://nvd.nist.gov/vuln/detail/CVE-2024-10001",
+            "https://security.example.com/advisories/EX-10001"
+          ],
+          "CVSS": [
+            {
+              "Version": "3.1",
+              "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "BaseScore": 8.8
+            }
+          ],
+          "VendorSeverity": "high"
+        },
+        {
+          "VulnerabilityID": "CVE-2023-77777",
+          "PkgName": "legacy-parser",
+          "PkgVersion": "0.9.1",
+          "InstalledVersion": "0.9.1",
+          "FixedVersion": "",
+          "Severity": "CRITICAL",
+          "Title": "Critical RCE in legacy parser",
+          "Description": "Remote code execution via crafted payload.",
+          "PrimaryURL": "https://security.example.com/CVE-2023-77777",
+          "References": [
+            "https://nvd.nist.gov/vuln/detail/CVE-2023-77777"
+          ],
+          "CVSS": [
+            {
+              "Version": "3.1",
+              "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+              "BaseScore": 10.0
+            }
+          ],
+          "VendorSeverity": "critical"
+        }
+      ],
+      "Misconfigurations": []
+    },
+    {
+      "Target": "infra/k8s/deployment.yaml",
+      "Source": "kubernetes",
+      "Type": "config",
+      "Vulnerabilities": [],
+      "Misconfigurations": [
+        {
+          "ID": "KSV001",
+          "Title": "Container runs as root",
+          "Description": "securityContext.runAsNonRoot is not set to true",
+          "Message": "Set runAsNonRoot: true",
+          "Severity": "MEDIUM",
+          "PrimaryURL": "https://security.example.com/misconfig/KSV001",
+          "References": [
+            "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+          ],
+          "Target": "spec.template.spec.containers[0]"
+        },
+        {
+          "ID": "KSV002",
+          "Title": "Capabilities are not dropped",
+          "Description": "Container allows default Linux capabilities",
+          "Message": "Drop unnecessary capabilities",
+          "Severity": "LOW",
+          "PrimaryURL": "https://security.example.com/misconfig/KSV002",
+          "References": [
+            "https://owasp.org/www-project-kubernetes-top-ten/"
+          ],
+          "Target": "spec.template.spec.containers[0].securityContext.capabilities"
+        }
+      ]
+    }
+  ]
+}

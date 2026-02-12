@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Policy Format</title>
+  <style>:root {
+  --bg: #120c08;
+  --panel: #1d1410;
+  --ink: #ffe7c2;
+  --muted: #d2a777;
+  --accent: #ff9f2f;
+  --accent-soft: #3a2416;
+  --line: #5e3a22;
+  --code-bg: #120b07;
+  --code-ink: #ffd8a8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 520px at 0% 0%, #ff8b2f55 0%, transparent 60%),
+    radial-gradient(760px 460px at 100% 0%, #ffbf3f2e 0%, transparent 62%),
+    radial-gradient(860px 480px at 50% 100%, #ff6a0035 0%, transparent 65%),
+    var(--bg);
+}
+.layout {
+  width: min(1100px, calc(100vw - 2.4rem));
+  margin: 1.2rem auto 2rem;
+}
+.site-header {
+  padding: 0.85rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(27, 17, 12, 0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.brand img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #2a1a12;
+  padding: 2px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-app {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.brand-company {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: #ffb24a;
+  text-decoration: none;
+  font-weight: 600;
+}
+.site-nav a:hover {
+  text-decoration: underline;
+}
+.header {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(40, 25, 17, 0.82);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+}
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.2rem, 2.5vw, 1.7rem);
+}
+.header p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+.card {
+  background: var(--panel);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 35px -28px rgba(12, 35, 66, 0.45);
+  padding: clamp(1rem, 2.4vw, 2rem);
+}
+.doc-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+.doc-link {
+  display: block;
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: #2b1a11;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+.doc-link:hover {
+  border-color: #a05b22;
+  background: #3a2316;
+}
+.doc-link-title {
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+.doc-link-file {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.pipeline-diagram {
+  margin: 0.7rem 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #25170f 0%, #1b120d 100%);
+}
+.pipeline-main {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+.pipeline-step {
+  flex: 1 1 0;
+  border: 1px solid #6b4127;
+  border-radius: 10px;
+  background: #2b1a11;
+  padding: 0.6rem;
+  min-width: 0;
+}
+.pipeline-step-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.pipeline-step-sub {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+.pipeline-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb24a;
+  font-weight: 700;
+}
+.pipeline-branch-wrap {
+  margin-top: 0.55rem;
+  border-top: 1px dashed #7d4e2f;
+  padding-top: 0.55rem;
+}
+.pipeline-branch {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0.6rem;
+  align-items: start;
+}
+.pipeline-branch-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pipeline-branch-arrow {
+  color: #ffb24a;
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+.pipeline-note {
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.25;
+}
+h1 { font-size: 2rem; }
+h2 {
+  font-size: 1.35rem;
+  border-bottom: 2px solid #4d2f1b;
+  padding-bottom: 0.2rem;
+}
+h3 { font-size: 1.08rem; }
+p { margin: 0.45rem 0 0.95rem; }
+a {
+  color: #ffb24a;
+  text-underline-offset: 3px;
+}
+code {
+  background: #2d1a11;
+  border: 1px solid #6a4328;
+  padding: 0.1rem 0.32rem;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+pre {
+  margin: 0.75rem 0 1rem;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.9rem;
+  border-radius: 10px;
+  overflow: auto;
+  border: 1px solid #5a3a24;
+}
+pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+ul, ol {
+  margin: 0.35rem 0 1rem 1.25rem;
+  padding: 0;
+}
+li { margin: 0.3rem 0; }
+li input[type="checkbox"] {
+  pointer-events: none;
+  margin-right: 0.45rem;
+  transform: translateY(1px);
+}
+blockquote {
+  margin: 0.8rem 0 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.15rem 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.2rem;
+  font-size: 0.95rem;
+}
+thead tr { background: #3a2316; }
+th, td {
+  border: 1px solid var(--line);
+  padding: 0.52rem 0.58rem;
+  text-align: left;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: #26170f; }
+@media (max-width: 760px) {
+  .layout { width: min(1100px, calc(100vw - 1rem)); }
+  .site-header {
+    padding: 0.75rem 0.85rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .card { padding: 0.8rem; }
+  .doc-links { grid-template-columns: 1fr; }
+  .pipeline-main {
+    flex-direction: column;
+  }
+  .pipeline-arrow {
+    transform: rotate(90deg);
+  }
+  .pipeline-branch-wrap {
+    border-top: 0;
+    padding-top: 0.2rem;
+  }
+  .pipeline-branch {
+    grid-template-columns: 1fr;
+  }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  td {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding-left: 0.7rem;
+  }
+  tr { margin-bottom: 0.6rem; }
+}</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="site-header">
+      <div class="brand">
+        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <div class="brand-text">
+          <div class="brand-app">security-gate</div>
+          <div class="brand-company">solardome</div>
+        </div>
+      </div>
+      <nav class="site-nav">
+<a href="architecture.html">Architecture</a>
+<a href="core-decision-engine.html">Core Decision Engine</a>
+<a href="governance-accepted-risk.html">Governance: Accepted Risk</a>
+<a href="llm-boundary.html">LLM Boundary</a>
+<a href="modules.html">Modules</a>
+<a href="policy-format.html" aria-current="page">Policy Format</a>
+      </nav>
+    </div>
+    <div class="header">
+      <h1>Policy Format</h1>
+      <p>Generated from policy-format.md</p>
+    </div>
+    <article class="card">
+
+<h1 id="policy-format">Policy Format</h1>
+<p>Authority Notice This document describes the canonical policy schema while remaining non-authoritative for decision logic, evaluation order, and stage behavior, which are defined exclusively in docs/core-decision-engine.md; design intent lives in design/architecture.prompt.md. In conflicts, the schema documented here and those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document defines the minimal policy-as-code format used by security-gate. It is deterministic, stage-aware, and consistent with <code>docs/core-decision-engine.md</code>, which remains the <strong>authoritative source</strong> for scoring formulas, stage matrices, hard-stop conditions, noise budget guardrails, and suppression invariants. This document specifies how policy files <em>configure</em> that engine and MUST NOT redefine core decision logic.</p>
+<h2 id="purpose">Purpose</h2>
+<ul>
+<li>Define rule structure and evaluation behavior.</li>
+<li>Provide stage-aware conditions and trust-based tightening.</li>
+<li>Specify exception objects (false positives) with scope and expiry.</li>
+<li>Specify accepted risk objects (justified, time-bound) for policy evaluation.</li>
+</ul>
+<h2 id="format-overview">Format Overview</h2>
+<ul>
+<li>Declarative JSON or YAML.</li>
+<li>All policies are local files; no network dependencies.</li>
+<li>The base decision matrix and scoring model are fixed by</li>
+</ul>
+<p><code>docs/core-decision-engine.md</code>. Policy rules may only <strong>tighten</strong> decisions; accepted risk handling follows Precedence Rules.</p>
+<ul>
+<li>Noise budget configuration is limited to <code>stage=pr</code> in the MVP:</li>
+<ul>
+<li>When <strong>no explicit noise_budget_top_k rule</strong> is present for <code>stage=pr</code>, the engine</li>
+</ul>
+</ul>
+<p>applies the default from the core decision engine (<code>top-5</code> non-hard-stop findings from the scoring set).</p>
+<ul>
+<ul>
+<li>When an explicit <code>noise_budget_top_k</code> rule is present for <code>stage=pr</code>, that rule</li>
+</ul>
+</ul>
+<p>overrides the default while still respecting deterministic ordering and suppression invariants.</p>
+<ul>
+<ul>
+<li>Any policy that attempts to enable noise budgeting for <code>main</code>, <code>release</code>, or <code>prod</code></li>
+</ul>
+</ul>
+<p>is treated as a <strong>policy parse/validation fatal error</strong>; such policies MUST be rejected by the engine and result in fail-closed behavior per <code>docs/modules.md</code>.</p>
+<h2 id="provenance-signing-controls">Provenance &amp; Signing Controls</h2>
+<p>Policy requirements such as <code>requires_signed_artifact=true</code> or <code>requires_provenance_level&gt;=L2</code> are enforced deterministically in two layers:</p>
+<ol>
+<li><strong>Hard-stop synthetic findings</strong> (<code>domain=PROVENANCE</code>, <code>hard_stop=true</code>, <code>risk_score=100</code>) are emitted for explicit violations (invalid signatures, provenance mismatches, unsigned artifacts when signing is required, insufficient provenance level). These findings bypass governance suppressions and noise budgets and are evaluated before scoring (see Deterministic Evaluation Order step 3).</li>
+<li><strong>Trust penalties</strong> only adjust <code>trust_score</code> (artifact signing and provenance level signals) when the policy does <strong>not</strong> demand the signal. Unsigned or unknown provenance data therefore do <strong>not</strong> automatically emit a hard stop—they remain penalties on trust_score unless the policy requires them.</li>
+</ol>
+<p>All policy rules observe a deterministic scoring set that excludes hard-stop findings, and governance/accepted risk never suppresses those synthetic provenance findings.</p>
+<h2 id="top-level-structure">Top-Level Structure</h2>
+<ul>
+<li>policy_version: string</li>
+<li>rules: array of Rule</li>
+<li>exceptions: array of Exception (optional)</li>
+<li>metadata: object (optional)</li>
+</ul>
+<h2 id="stage-enum-canonical">Stage Enum (Canonical)</h2>
+<p>The canonical stage enum and legacy-to-canonical mapping are defined in <code>docs/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong> and MUST be treated as the single source of truth. For convenience when writing policies, stages are referenced by the canonical tokens:</p>
+<ul>
+<li>pr</li>
+<li>main</li>
+<li>release</li>
+<li>prod</li>
+</ul>
+<p>Examples of legacy-to-canonical mappings (non-normative reminder; if this table and the core engine ever differ, the core engine wins):</p>
+<table><thead><tr><th>Legacy term</th><th>Canonical token</th></tr></thead><tbody>
+<tr><td>PR/feature</td><td>pr</td></tr>
+<tr><td>merge/main</td><td>main</td></tr>
+<tr><td>deploy-to-prod</td><td>prod</td></tr>
+</tbody></table>
+<h2 id="rule-structure">Rule Structure</h2>
+<p>A rule has deterministic conditions and tightening actions.</p>
+<p>Required fields:</p>
+<ul>
+<li>id: string (unique)</li>
+<li>description: string</li>
+<li>stage_scope: array of stages (pr, main, release, prod)</li>
+<li>when: object of conditions (all must match)</li>
+<li>then: object of actions</li>
+</ul>
+<p>Optional fields:</p>
+<ul>
+<li>enabled: boolean (default true)</li>
+<li>tags: array of strings</li>
+</ul>
+<h3 id="conditions-when">Conditions (when)</h3>
+<p>Supported condition keys:</p>
+<ul>
+<li>release_risk_gte, release_risk_lte</li>
+<li>trust_score_gte, trust_score_lt</li>
+<li>max_finding_risk_gte, max_finding_risk_lte</li>
+<li>domain_in (list of domains)</li>
+<li>severity_in (list of severities)</li>
+<li>change_type_in (list)</li>
+<li>exposure_in (list)</li>
+<li>fix_available_in (list: true, false, unknown)</li>
+<li>has_hard_stop (boolean)</li>
+</ul>
+<h3 id="actions-then">Actions (then)</h3>
+<p>Actions must be deterministic and may only tighten decisions (see Precedence Rules for the accepted risk exception to warn_to_block).</p>
+<ul>
+<li>decision: ALLOW | WARN | BLOCK (tightening only; never override hard-stop)</li>
+<li>warn_to_block: boolean (explicitly enforce WARN -&gt; BLOCK in scoped stages)</li>
+<li>noise_budget_top_k: integer (pr only; enabling the field for other stages is a fatal policy error; applied at step 6 of Deterministic Evaluation Order). When multiple <code>noise_budget_top_k</code> rules could apply to <code>stage=pr</code>, the engine MUST either:</li>
+<ul>
+<li>treat the configuration as invalid and fail policy validation. Engines MUST NOT</li>
+</ul>
+</ul>
+<p>attempt to resolve conflicts by selecting a “most specific” rule; ambiguity is always a policy error. Non-PR usage of <code>noise_budget_top_k</code> remains a fatal policy error.</p>
+<ul>
+<li>add_required_steps: array of deterministic step IDs (from core decision engine)</li>
+<li>require_accepted_risk: object (requires a valid accepted risk for deterministically derived matched_fingerprints)</li>
+<ul>
+<li>selector: object (required)</li>
+<ul>
+<li>type: enum (top_findings | all_high_or_critical)</li>
+<li>top_n: integer (only for type=top_findings; default=1; bounds 1..10)</li>
+</ul>
+<li>scope: enum (scoring_set | considered_set) (default=scoring_set)</li>
+<ul>
+<li>scoring_set: derive fingerprints after governance suppressions and before PR-only noise budget</li>
+<li>considered_set: derive fingerprints after PR-only noise budget (stage=pr only); see the canonical definition in <code>docs/core-decision-engine.md</code> → “Noise Budget Mechanism (Guardrails)” so selectors remain aligned with the authoritative pipeline.</li>
+</ul>
+</ul>
+</ul>
+<p>Selector semantics (MVP):</p>
+<ul>
+<li><code>all_high_or_critical</code>: select all non-hard-stop findings in the scoring set with severity in {HIGH, CRITICAL}.</li>
+<li><code>top_findings</code>: select the first <code>top_n</code> non-hard-stop findings by the canonical Deterministic Finding Ordering.</li>
+<li>The resulting fingerprint list is the rule’s <code>matched_fingerprints</code> and is used to enforce <code>require_accepted_risk</code> (see enforcement below).</li>
+</ul>
+<p>Enforcement (MVP):</p>
+<ul>
+<li>A rule with <code>require_accepted_risk</code> is evaluated at step 7 of the Deterministic Evaluation Order.</li>
+<li>If the rule’s <code>when</code> conditions match and <strong>no valid Accepted Risk</strong> covers <strong>every</strong> <code>matched_fingerprints</code> produced by the selector (respecting stage/environment scope and expiry), the policy engine MUST tighten the outcome to:</li>
+<ul>
+<li><code>decision=BLOCK</code> for stage=main/release/prod</li>
+<li><code>decision=WARN</code> for stage=pr</li>
+</ul>
+<li>The decision_trace MUST include a <code>policy.require_accepted_risk.missing</code> event with the bounded fingerprint list and total count, and <code>recommended_next_steps</code> MUST include <code>ADD_ACCEPTED_RISK</code>.</li>
+</ul>
+<h2 id="exception-objects-false-positives">Exception Objects (False Positives)</h2>
+<p>Exceptions suppress known false positives. They are always time-bound and scoped.</p>
+<p><strong>Exception vs Accepted Risk selectors:</strong> Exceptions use <code>finding_selector</code> with keys such as domain, cve_id, title_contains, location_contains, source_scanner, severity. Exceptions may match <strong>without</strong> fingerprint—matching is evaluated at runtime by comparing selector fields to each finding; all present selector keys must match. This allows broad suppression of known false positives (e.g., by CVE or domain). Accepted Risks, by contrast, <strong>must</strong> include fingerprint in finding_selector for deterministic, stable matching (see <code>docs/governance-accepted-risk.md</code>). Exceptions and Accepted Risks are independent: an exception cannot reference an accepted risk, and vice versa.</p>
+<p>Required fields:</p>
+<ul>
+<li>id: string (unique)</li>
+<li>description: string</li>
+<li>finding_selector: object (deterministic match criteria)</li>
+<li>stage_scope: array of stages</li>
+<li>environment_scope: array (e.g., dev, staging, prod)</li>
+<li>expires_at: RFC3339 timestamp</li>
+<li>owner: string</li>
+<li>rationale: string</li>
+</ul>
+<p>Supported finding_selector keys (all match if present):</p>
+<ul>
+<li>domain</li>
+<li>cve_id</li>
+<li>title_contains</li>
+<li>location_contains</li>
+<li>source_scanner</li>
+<li>severity</li>
+</ul>
+<p>Rules:</p>
+<ul>
+<li>Exceptions never apply to hard-stop domains.</li>
+<li>Expired exceptions are ignored and recorded as governance warnings.</li>
+<li>Exceptions suppress findings from decision scoring but keep them in the trace.</li>
+</ul>
+<h2 id="accepted-risk-objects-justified-risk-acceptance">Accepted Risk Objects (Justified Risk Acceptance)</h2>
+<p>Accepted risk objects are defined in <code>docs/governance-accepted-risk.md</code> and are provided as a local file. This policy format references the same schema.</p>
+<p>Rules:</p>
+<ul>
+<li>Accepted risks are time-bound and scoped by stage and environment.</li>
+<li>Accepted risks cannot apply to hard-stop domains.</li>
+<li>Accepted risks may allow WARN in prod <strong>only if</strong> explicitly stated.</li>
+</ul>
+<h2 id="deterministic-evaluation-order">Deterministic Evaluation Order</h2>
+<p>Evaluation order is defined canonically in <code>docs/core-decision-engine.md</code> under <strong>“Canonical Deterministic Evaluation Order (Authoritative)”</strong> and is not re-specified here.</p>
+<h2 id="deterministic-finding-ordering-for-selectors-and-noise-budget">Deterministic Finding Ordering for Selectors and Noise Budget</h2>
+<p>Selectors, selectors-driven suppressions (e.g., require_accepted_risk), and the PR-only noise budget must reuse a single stable ordering so that results stay deterministic. The canonical order is:</p>
+<ol>
+<li><code>hard_stop</code> descending (<code>true</code> before <code>false</code>), though noise budget explicitly excludes hard-stop findings.</li>
+<li><code>risk_score</code> descending.</li>
+<li><code>severity</code> descending, using the fixed ranking <code>CRITICAL &gt; HIGH &gt; MEDIUM &gt; LOW &gt; INFO &gt; UNKNOWN</code>.</li>
+<li><code>fingerprint</code> lexicographically ascending as the final tie-breaker.</li>
+</ol>
+<p><code>noise_budget_top_k</code> ranking applies these rules to the non-hard-stop scoring set. <code>selector=top_findings</code> selects the <code>top_n</code> entries by the same order, and <code>selector.type=all_high_or_critical</code> first filters to severity <code>{HIGH, CRITICAL}</code> before sorting by this order to derive <code>matched_fingerprints</code>.</p>
+<h2 id="canonical-fingerprint-usage">Canonical Fingerprint Usage</h2>
+<p>Selectors, noise budgets, warn coverage, and accepted risk enforcement MUST rely on the canonical <code>fingerprint</code> defined in <code>docs/core-decision-engine.md</code>. This field is calculated by concatenating the normalized key fields in the prescribed order (domain, normalized location, evidence reference, title, severity, scanner, scanner version, CVE if present, and the input hash) and hashing the result with SHA-256. The scanner-provided <code>finding_id</code> remains part of the output for traceability, but it is not used for deterministic gating or policy selectors. Every occurrence of <code>matched_fingerprints</code>, <code>suppressed_fingerprints</code>, <code>warn_causing_fingerprints</code>, or any accepted risk selector must match on these canonical values so that policy enforcement, noise budgeting, and governance references remain stable across runs and revisions.</p>
+<h2 id="mvp-vs-v2-noise-budget-and-selectors">MVP vs v2: Noise Budget and Selectors</h2>
+<ul>
+<li>MVP: Noise budget configuration is limited to <code>stage=pr</code> only. Selectors or suppression logic that rely on <code>noise_budget_top_k</code> must respect the deterministic ordering above and must not be extended to main/release/prod in the MVP.</li>
+<li>v2: Optional main-stage noise budget extensions and more advanced selector configurations (e.g., multi-stage selectors or finer-grained require_accepted_risk filters) can be evaluated later, but they must keep the ordering deterministic and the existing failure-safe behavior for stage-specific gating.</li>
+</ul>
+<h2 id="prod-warn-escalation-and-allowwarninprod-coverage">Prod WARN Escalation and allow_warn_in_prod Coverage</h2>
+<p>Prod warn_to_block escalation is global. Define warn_causing_fingerprints as the fingerprints of:</p>
+<ol>
+<li>All non-hard-stop findings in the scoring set with <code>severity &gt;= HIGH</code>.</li>
+<li>If severity data is missing, the single top finding determined by the Deterministic Finding Ordering.</li>
+</ol>
+<p><code>allow_warn_in_prod=true</code> only prevents WARN → BLOCK when a valid Accepted Risk (active stage_scope includes prod, environment matches, not expired/revoked) covers every warn_causing_fingerprint. Partial coverage leaves escalation intact and the policy still records BLOCK. Hard-stop findings remain unaffected.</p>
+<h2 id="precedence-rules">Precedence Rules</h2>
+<ul>
+<li>Policy rules are tighten-only except that an explicitly approved Accepted Risk may prevent warn_to_block escalation for its scoped findings when allow_warn_in_prod=true.</li>
+<li>Accepted Risk never overrides hard-stop domains (SECRET, MALWARE, PROVENANCE) and never overrides provenance/signing hard-stops.</li>
+<li>Accepted Risk affects only the scoped finding fingerprints; unrelated findings or conditions may still cause BLOCK.</li>
+<li>When a finding is suppressed by an accepted risk, exception, or noise budget, its normalized record must set the matching <code>suppressed_by_*</code> boolean and the corresponding <code>governance.applied</code>, <code>exception.applied</code>, or <code>noise_budget.applied</code> event in the decision_trace must list the suppressed fingerprints (bounded to 20 entries) plus the total suppressed count. This ensures the per-finding suppression flags recorded in <code>decision.findings.items</code> align with the auditable trace of suppressed fingerprints.</li>
+<li>Decision trace MUST record accepted_risks_applied, accepted_risks_coverage (risk_id to finding_ids), and whether allow_warn_in_prod was used.</li>
+</ul>
+<h2 id="example-rules-yaml">Example Rules (YAML)</h2>
+<p>Below are example rules demonstrating stage-aware tightening and trust-based gating.</p>
+<pre><code>
+policy_version: &quot;1&quot;
+rules:
+  - id: R-PROD-WARN-BLOCK
+    description: Escalate WARN to BLOCK in prod unless accepted risk allows WARN.
+    stage_scope: [prod]
+    when:
+      release_risk_gte: 0
+    then:
+      warn_to_block: true
+
+  - id: R-LOW-TRUST-BLOCK
+    description: Block main, release, and prod when trust is very low.
+    stage_scope: [main, release, prod]
+    when:
+      trust_score_lt: 20
+    then:
+      decision: BLOCK
+
+  - id: R-PUBLIC-RELEASE-TIGHTEN
+    description: Tighten release gating for public exposure.
+    stage_scope: [release]
+    when:
+      exposure_in: [public]
+      release_risk_gte: 40
+    then:
+      decision: BLOCK
+
+  - id: R-STRONG-COPYLEFT-PROD
+    description: Block strong copyleft licenses in prod.
+    stage_scope: [prod]
+    when:
+      domain_in: [LICENSE]
+      severity_in: [HIGH, CRITICAL]
+    then:
+      decision: BLOCK
+
+  - id: R-NOISE-BUDGET-pr
+    description: Apply pr noise budget top-5 (default behavior).
+    stage_scope: [pr]
+    when:
+      release_risk_gte: 0
+    then:
+      noise_budget_top_k: 5
+
+  - id: R-NO-FIX-REQUIRES-ACCEPTED-RISK
+    description: Require accepted risk for HIGH+ findings with no fix in release/prod.
+    stage_scope: [release, prod]
+    when:
+      severity_in: [HIGH, CRITICAL]
+      fix_available_in: [false]
+    then:
+      require_accepted_risk:
+        selector:
+          type: all_high_or_critical
+
+  - id: R-HIGH-VULN-pr-REMEDIATION
+    description: Require deterministic remediation steps for HIGH+ vulns in pr.
+    stage_scope: [pr]
+    when:
+      domain_in: [VULNERABILITY]
+      severity_in: [HIGH, CRITICAL]
+    then:
+      add_required_steps: [FIX_VULN]
+</code></pre>
+<h2 id="future-v2-extended-noise-budget">Future v2: Extended Noise Budget</h2>
+<p>MVP policy processing rejects any rule that activates a noise budget outside <code>stage=pr</code>. The following rule illustrates how a future v2 might safely introduce stage-aware noise budgets while respecting deterministic ordering—do not use this in MVP policy files.</p>
+<pre><code>
+- id: R-NOISE-BUDGET-main
+  description: (v2) Apply limited noise budget on main when explicitly allowed.
+  stage_scope: [main]
+  when:
+    trust_score_gte: 70
+  then:
+    noise_budget_top_k: 3
+</code></pre>
+<p>This block is for planning reference only; enabling it today would be a fatal policy error for main/release/prod.</p>
+<h2 id="acceptance-criteria">Acceptance Criteria</h2>
+<ul>
+<li><input type="checkbox" > Rule structure, conditions, and actions are explicitly defined.</li>
+<li><input type="checkbox" > Stage-aware conditions and trust-based tightening are supported.</li>
+<li><input type="checkbox" > Exceptions and accepted risk objects include scope and expiry.</li>
+<li><input type="checkbox" > Evaluation order is deterministic and recorded in the decision trace.</li>
+<li><input type="checkbox" > Example rules (6-10) are provided and do not contradict the core engine.</li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>

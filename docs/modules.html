@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Modules</title>
+  <style>:root {
+  --bg: #120c08;
+  --panel: #1d1410;
+  --ink: #ffe7c2;
+  --muted: #d2a777;
+  --accent: #ff9f2f;
+  --accent-soft: #3a2416;
+  --line: #5e3a22;
+  --code-bg: #120b07;
+  --code-ink: #ffd8a8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 520px at 0% 0%, #ff8b2f55 0%, transparent 60%),
+    radial-gradient(760px 460px at 100% 0%, #ffbf3f2e 0%, transparent 62%),
+    radial-gradient(860px 480px at 50% 100%, #ff6a0035 0%, transparent 65%),
+    var(--bg);
+}
+.layout {
+  width: min(1100px, calc(100vw - 2.4rem));
+  margin: 1.2rem auto 2rem;
+}
+.site-header {
+  padding: 0.85rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(27, 17, 12, 0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.brand img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #2a1a12;
+  padding: 2px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-app {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.brand-company {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: #ffb24a;
+  text-decoration: none;
+  font-weight: 600;
+}
+.site-nav a:hover {
+  text-decoration: underline;
+}
+.header {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(40, 25, 17, 0.82);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+}
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.2rem, 2.5vw, 1.7rem);
+}
+.header p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+.card {
+  background: var(--panel);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 35px -28px rgba(12, 35, 66, 0.45);
+  padding: clamp(1rem, 2.4vw, 2rem);
+}
+.doc-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+.doc-link {
+  display: block;
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: #2b1a11;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+.doc-link:hover {
+  border-color: #a05b22;
+  background: #3a2316;
+}
+.doc-link-title {
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+.doc-link-file {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.pipeline-diagram {
+  margin: 0.7rem 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #25170f 0%, #1b120d 100%);
+}
+.pipeline-main {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+.pipeline-step {
+  flex: 1 1 0;
+  border: 1px solid #6b4127;
+  border-radius: 10px;
+  background: #2b1a11;
+  padding: 0.6rem;
+  min-width: 0;
+}
+.pipeline-step-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.pipeline-step-sub {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+.pipeline-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb24a;
+  font-weight: 700;
+}
+.pipeline-branch-wrap {
+  margin-top: 0.55rem;
+  border-top: 1px dashed #7d4e2f;
+  padding-top: 0.55rem;
+}
+.pipeline-branch {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0.6rem;
+  align-items: start;
+}
+.pipeline-branch-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pipeline-branch-arrow {
+  color: #ffb24a;
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+.pipeline-note {
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.25;
+}
+h1 { font-size: 2rem; }
+h2 {
+  font-size: 1.35rem;
+  border-bottom: 2px solid #4d2f1b;
+  padding-bottom: 0.2rem;
+}
+h3 { font-size: 1.08rem; }
+p { margin: 0.45rem 0 0.95rem; }
+a {
+  color: #ffb24a;
+  text-underline-offset: 3px;
+}
+code {
+  background: #2d1a11;
+  border: 1px solid #6a4328;
+  padding: 0.1rem 0.32rem;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+pre {
+  margin: 0.75rem 0 1rem;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.9rem;
+  border-radius: 10px;
+  overflow: auto;
+  border: 1px solid #5a3a24;
+}
+pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+ul, ol {
+  margin: 0.35rem 0 1rem 1.25rem;
+  padding: 0;
+}
+li { margin: 0.3rem 0; }
+li input[type="checkbox"] {
+  pointer-events: none;
+  margin-right: 0.45rem;
+  transform: translateY(1px);
+}
+blockquote {
+  margin: 0.8rem 0 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.15rem 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.2rem;
+  font-size: 0.95rem;
+}
+thead tr { background: #3a2316; }
+th, td {
+  border: 1px solid var(--line);
+  padding: 0.52rem 0.58rem;
+  text-align: left;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: #26170f; }
+@media (max-width: 760px) {
+  .layout { width: min(1100px, calc(100vw - 1rem)); }
+  .site-header {
+    padding: 0.75rem 0.85rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .card { padding: 0.8rem; }
+  .doc-links { grid-template-columns: 1fr; }
+  .pipeline-main {
+    flex-direction: column;
+  }
+  .pipeline-arrow {
+    transform: rotate(90deg);
+  }
+  .pipeline-branch-wrap {
+    border-top: 0;
+    padding-top: 0.2rem;
+  }
+  .pipeline-branch {
+    grid-template-columns: 1fr;
+  }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  td {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding-left: 0.7rem;
+  }
+  tr { margin-bottom: 0.6rem; }
+}</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="site-header">
+      <div class="brand">
+        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <div class="brand-text">
+          <div class="brand-app">security-gate</div>
+          <div class="brand-company">solardome</div>
+        </div>
+      </div>
+      <nav class="site-nav">
+<a href="architecture.html">Architecture</a>
+<a href="core-decision-engine.html">Core Decision Engine</a>
+<a href="governance-accepted-risk.html">Governance: Accepted Risk</a>
+<a href="llm-boundary.html">LLM Boundary</a>
+<a href="modules.html" aria-current="page">Modules</a>
+<a href="policy-format.html">Policy Format</a>
+      </nav>
+    </div>
+    <div class="header">
+      <h1>Modules</h1>
+      <p>Generated from modules.md</p>
+    </div>
+    <article class="card">
+
+<h1 id="modules">Modules</h1>
+<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document specifies module responsibilities, interfaces, and operational constraints. It aligns with <code>docs/core-decision-engine.md</code> and remains implementation-agnostic.</p>
+<h2 id="fatal-errors-and-fail-closed-defaults-authoritative">Fatal Errors and Fail-Closed Defaults (Authoritative)</h2>
+<p>Fatal errors are deterministic pipeline failures that make the decision non-authoritative. The following conditions are fatal:</p>
+<ul>
+<li>invalid/unsupported input format</li>
+<li>cannot hash decision-affecting inputs</li>
+<li>schema validation failure</li>
+<li>policy parse failure</li>
+<li>accepted risk parse/validation failure</li>
+</ul>
+<p>Fail-closed defaults:</p>
+<ul>
+<li>stage=main/release/prod: fatal error =&gt; BLOCK and emit minimal decision.json with error metadata.</li>
+<li>stage=pr: fatal error =&gt; WARN (exit_code=1) with low-trust defaults ONLY if scanner input is present and hashable; otherwise BLOCK.</li>
+</ul>
+<p>All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.</p>
+<h2 id="cmdcli">cmd/cli</h2>
+<p>Purpose:</p>
+<ul>
+<li>Orchestrate the deterministic pipeline and produce exit codes 0/1/2.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: scanner outputs (file paths or stdin), context.json, policy file, accepted risk file.</li>
+<li>Outputs: decision.json, summary.md, optional HTML report, process exit code.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>CLI flags (minimal):</li>
+<ul>
+<li>--input &lt;path&gt; (repeatable)</li>
+<li>--stdin (read scanner output from stdin)</li>
+<li>--context &lt;path&gt;</li>
+<li>--policy &lt;path&gt;</li>
+<li>--accepted-risk &lt;path&gt;</li>
+<li>--output-dir &lt;path&gt;</li>
+</ul>
+<li>--stage &lt;pr|main|release|prod&gt; (override context.pipeline_stage if provided)</li>
+<ul>
+<li>--report-html (optional)</li>
+<li>--llm &lt;on|off&gt; (optional, default off)</li>
+</ul>
+</ul>
+<p>Stage precedence and recording:</p>
+<ul>
+<li>The effective stage used for all gating and decision matrices is derived as follows:</li>
+<ul>
+<li>If <code>--stage</code> is provided, it is authoritative and overrides any</li>
+</ul>
+</ul>
+<p><code>context.payload.pipeline_stage</code> value.</p>
+<ul>
+<ul>
+<li>If <code>--stage</code> is not provided, <code>context.payload.pipeline_stage</code> is used.</li>
+</ul>
+<li><code>decision.json.inputs.context.payload.pipeline_stage</code> MUST reflect the <strong>effective</strong></li>
+</ul>
+<p>stage used for evaluation. If a conflicting stage was present in the original context payload and overridden by <code>--stage</code>, the engine MUST record this in <code>decision_trace</code> (for example, via a <code>context.stage_override</code> event with both values) so audits can reconstruct the discrepancy.</p>
+<p>Error Handling:</p>
+<ul>
+<li>Fatal errors follow &quot;Fatal Errors and Fail-Closed Defaults (Authoritative)&quot;.</li>
+<li>LLM failures never change the decision status.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Emits a summary of key inputs and outputs.</li>
+<li>Ensures decision_trace is persisted as part of decision.json.</li>
+<li>Records SHA-256 hashes for every decision-affecting input (scanner outputs, context, policy, and accepted risk files) so the trace ties each decision to the exact file contents.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>No network calls; local execution only.</li>
+<li>Treats all inputs as untrusted and enforces size limits. MVP limits: scanner input file size ≤ 50 MiB per file; total scanner input ≤ 100 MiB; policy file ≤ 1 MiB; accepted risk file ≤ 1 MiB; context file ≤ 256 KiB; max finding count per scan ≤ 10,000. Exceeding any limit is a fatal error (fail-closed per stage).</li>
+</ul>
+<h2 id="ingesttrivy">ingest/trivy</h2>
+<p>Purpose:</p>
+<ul>
+<li>Parse Trivy JSON outputs and extract raw findings and metadata.</li>
+<li>Hash inputs (SHA-256) for traceability.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: local Trivy JSON file(s) or stdin stream.</li>
+<li>Outputs: raw findings list, scan metadata, input_sha256.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Accepts file paths or stdin; records <code>source_scanner=trivy</code> and any provided metadata.</li>
+<li>When <code>source_version</code> is missing, immediately normalize it to the deterministic sentinel (e.g., <code>&quot;unknown&quot;</code>), persist that value in every normalized finding, and emit a <code>context.source_version_missing</code> <code>decision_trace</code> event that references the input path/stream so downstream scoring sees the canonical version and the incident remains auditable.</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>Invalid/unsupported input format (including unreadable or non-JSON input) is a fatal error.</li>
+<li>Cannot hash decision-affecting inputs is a fatal error.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Records input hashes, scan timestamps, and finding counts.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>Inputs are attacker-controlled; no parsing side effects or execution.</li>
+</ul>
+<h2 id="normalize">normalize</h2>
+<p>Purpose:</p>
+<ul>
+<li>Convert scanner-specific data into the Unified Finding Schema.</li>
+<li>Enforce required fields and canonical enumerations.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: raw findings and ingest metadata.</li>
+<li>Outputs: normalized findings with required fields present.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Produces normalized findings with domain, severity, and evidence_ref set.</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>Required fields must be populated; missing scan_timestamp uses ingest_time with timestamp_source=ingest, and input_sha256 must be computed at ingest.</li>
+<li>Schema validation failure is a fatal error.</li>
+<li>Cannot hash decision-affecting inputs is a fatal error.</li>
+<li>If domain cannot be mapped, emit the synthetic <code>UNKNOWN_DOMAIN_MAPPING</code> hard-stop condition as defined in <code>docs/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>, implemented as a normalized finding with <code>title=UNKNOWN_DOMAIN_MAPPING</code>, <code>domain=CONFIG</code>, and <code>severity=HIGH</code>. Record the raw domain value in decision_trace.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Records normalization warnings and field substitutions in decision_trace.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>Redacts or truncates sensitive content; never stores raw secrets.</li>
+</ul>
+<h2 id="score-risk-trust">score (risk + trust)</h2>
+<p>Purpose:</p>
+<ul>
+<li>Compute per-finding risk_score and global trust_score deterministically.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: normalized findings, context inputs, provenance signals.</li>
+<li>Outputs: scored findings, trust_score, trust_signals.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Outputs risk_score, hard_stop flag, and trust_score per core decision engine.</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>Missing trust signals are treated as unknown with safe penalties.</li>
+<li>Schema validation failure is a fatal error.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Records all scoring inputs, modifiers, and outputs in decision_trace.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>No external lookups; strictly local computation.</li>
+</ul>
+<h2 id="policy">policy</h2>
+<p>Purpose:</p>
+<ul>
+<li>Apply noise budget, exceptions, accepted risks, and stage decision matrix.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: scored findings, trust_score, policy rules, accepted risks, pipeline_stage.</li>
+<li>Outputs: decision status, exit code, evaluated rule list, applied exceptions/risks.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Consumes policy-as-code and accepted risk objects.</li>
+<li>Produces decision status and recommended_next_steps (deterministic only).</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>Policy parse failure is a fatal error.</li>
+<li>Expired Accepted Risk handling follows the authoritative rules in the core decision engine and governance module.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Records evaluated rules, exceptions, noise budget effects, and stage matrix outcome.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>No policy rule can override hard-stop conditions.</li>
+<li>The exhaustive set of hard-stop conditions is defined authoritatively in</li>
+</ul>
+<p><code>docs/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>; all of these conditions bypass noise budget, cannot be suppressed, and always force BLOCK.</p>
+<h2 id="decisiontrace">decision_trace</h2>
+<p>Purpose:</p>
+<ul>
+<li>Maintain an ordered, append-only trace of ingest, normalize, score, and policy events.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: module events, hashes, normalized findings, scoring details.</li>
+<li>Outputs: decision_trace array embedded in decision.json (and optional standalone file).</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Provides a canonical trace structure for reporting and LLM explanation.</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Ensures deterministic ordering and timestamped events.</li>
+<li>Includes hash and source metadata for every decision-affecting input (scanner outputs, context, policy, accepted risks) so each event can be audited.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>Redacts sensitive fields; stores references to evidence, not raw secrets.</li>
+</ul>
+<h2 id="governance-accepted-risk">governance (accepted risk)</h2>
+<p>Purpose:</p>
+<ul>
+<li>Validate accepted risk objects and enforce scope, approval, and expiry.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: accepted risk file, context stage/environment, findings.</li>
+<li>Outputs: accepted_risks_applied list and governance warnings.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Accepts a repo-local accepted risk file and returns applicable records.</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>Accepted risk parse/shape/validation failure (malformed file, missing required fields,</li>
+</ul>
+<p>invalid enum values) is a fatal error and follows &quot;Fatal Errors and Fail-Closed Defaults (Authoritative)&quot; above.</p>
+<ul>
+<li>Records that are schema-valid but <strong>governance-invalid</strong> (for example, attempting to</li>
+</ul>
+<p>apply effects to hard-stop domains, omitting a canonical fingerprint in finding_selector, or declaring allow_warn_in_prod=true without required approvals) MUST be ignored for suppression and coverage purposes, but recorded as governance warnings in <code>decision_trace</code> with risk_id and reason.</p>
+<ul>
+<li>Expired Accepted Risks are treated as INVALID for governance effects and gating (never</li>
+</ul>
+<p>considered active for suppression or prod WARN coverage).</p>
+<ul>
+<li>Additionally, expiry escalation is enforced deterministically:</li>
+<ul>
+<li>stage=pr/main: if an expired Accepted Risk would have matched a HIGH/CRITICAL finding, the final outcome is at least WARN (do not silently ignore; record governance.expired).</li>
+<li>stage=release/prod: if an expired Accepted Risk would have matched a HIGH/CRITICAL finding, the final outcome is BLOCK (fail-closed), even if other factors would allow WARN/ALLOW).</li>
+</ul>
+<li>Expired Accepted Risks never apply to hard-stop findings or conditions (unchanged).</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Records accepted risk IDs, scope checks, and expiry handling in decision_trace.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>No accepted risk can suppress hard-stop findings or conditions.</li>
+</ul>
+<h2 id="report">report</h2>
+<p>Purpose:</p>
+<ul>
+<li>Generate decision.json, summary.md, and optional HTML report.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: decision object, findings summary, decision_trace.</li>
+<li>Outputs: files written to output directory.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Emits decision.json with the authoritative schema and summary.md for humans.</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>Schema validation failure for decision.json is a fatal error.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Report files include references to input hashes and policy version.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>Ensure reports do not include raw secrets or unredacted evidence.</li>
+</ul>
+<h2 id="llm-optional-local-only">llm (optional, local only)</h2>
+<p>Purpose:</p>
+<ul>
+<li>Generate non-authoritative explanations and remediation guidance.</li>
+</ul>
+<p>Inputs and Outputs:</p>
+<ul>
+<li>Inputs: sanitized decision_trace, deterministic recommended_next_steps.</li>
+<li>Outputs: explanation text and content_ref in decision.json.</li>
+</ul>
+<p>Public Interfaces:</p>
+<ul>
+<li>Enabled by CLI flag; uses local LLM only (e.g., Ollama).</li>
+</ul>
+<p>Error Handling:</p>
+<ul>
+<li>LLM failures never change decision status; produce warnings only.</li>
+</ul>
+<p>Logging and Traceability:</p>
+<ul>
+<li>Records LLM invocation metadata and non_authoritative flag.</li>
+</ul>
+<p>Security Considerations:</p>
+<ul>
+<li>Inputs are sanitized to prevent prompt injection and data leakage.</li>
+</ul>
+<h2 id="acceptance-criteria">Acceptance Criteria</h2>
+<ul>
+<li><input type="checkbox" > Each module lists purpose, inputs/outputs, public interfaces, error handling, logging, and security considerations.</li>
+<li><input type="checkbox" > Module responsibilities align with the core decision engine pipeline.</li>
+<li><input type="checkbox" > Noise budget, hard-stop, and accepted risk governance are assigned to the policy/governance modules.</li>
+<li><input type="checkbox" > LLM module is explicitly non-authoritative and isolated from decisions.</li>
+<li><input type="checkbox" > No implementation code is included.</li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>

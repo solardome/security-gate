@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Governance: Accepted Risk</title>
+  <style>:root {
+  --bg: #120c08;
+  --panel: #1d1410;
+  --ink: #ffe7c2;
+  --muted: #d2a777;
+  --accent: #ff9f2f;
+  --accent-soft: #3a2416;
+  --line: #5e3a22;
+  --code-bg: #120b07;
+  --code-ink: #ffd8a8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 520px at 0% 0%, #ff8b2f55 0%, transparent 60%),
+    radial-gradient(760px 460px at 100% 0%, #ffbf3f2e 0%, transparent 62%),
+    radial-gradient(860px 480px at 50% 100%, #ff6a0035 0%, transparent 65%),
+    var(--bg);
+}
+.layout {
+  width: min(1100px, calc(100vw - 2.4rem));
+  margin: 1.2rem auto 2rem;
+}
+.site-header {
+  padding: 0.85rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(27, 17, 12, 0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.brand img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #2a1a12;
+  padding: 2px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-app {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.brand-company {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: #ffb24a;
+  text-decoration: none;
+  font-weight: 600;
+}
+.site-nav a:hover {
+  text-decoration: underline;
+}
+.header {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(40, 25, 17, 0.82);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+}
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.2rem, 2.5vw, 1.7rem);
+}
+.header p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+.card {
+  background: var(--panel);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 35px -28px rgba(12, 35, 66, 0.45);
+  padding: clamp(1rem, 2.4vw, 2rem);
+}
+.doc-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+.doc-link {
+  display: block;
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: #2b1a11;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+.doc-link:hover {
+  border-color: #a05b22;
+  background: #3a2316;
+}
+.doc-link-title {
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+.doc-link-file {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.pipeline-diagram {
+  margin: 0.7rem 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #25170f 0%, #1b120d 100%);
+}
+.pipeline-main {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+.pipeline-step {
+  flex: 1 1 0;
+  border: 1px solid #6b4127;
+  border-radius: 10px;
+  background: #2b1a11;
+  padding: 0.6rem;
+  min-width: 0;
+}
+.pipeline-step-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.pipeline-step-sub {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+.pipeline-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb24a;
+  font-weight: 700;
+}
+.pipeline-branch-wrap {
+  margin-top: 0.55rem;
+  border-top: 1px dashed #7d4e2f;
+  padding-top: 0.55rem;
+}
+.pipeline-branch {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0.6rem;
+  align-items: start;
+}
+.pipeline-branch-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pipeline-branch-arrow {
+  color: #ffb24a;
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+.pipeline-note {
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.25;
+}
+h1 { font-size: 2rem; }
+h2 {
+  font-size: 1.35rem;
+  border-bottom: 2px solid #4d2f1b;
+  padding-bottom: 0.2rem;
+}
+h3 { font-size: 1.08rem; }
+p { margin: 0.45rem 0 0.95rem; }
+a {
+  color: #ffb24a;
+  text-underline-offset: 3px;
+}
+code {
+  background: #2d1a11;
+  border: 1px solid #6a4328;
+  padding: 0.1rem 0.32rem;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+pre {
+  margin: 0.75rem 0 1rem;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.9rem;
+  border-radius: 10px;
+  overflow: auto;
+  border: 1px solid #5a3a24;
+}
+pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+ul, ol {
+  margin: 0.35rem 0 1rem 1.25rem;
+  padding: 0;
+}
+li { margin: 0.3rem 0; }
+li input[type="checkbox"] {
+  pointer-events: none;
+  margin-right: 0.45rem;
+  transform: translateY(1px);
+}
+blockquote {
+  margin: 0.8rem 0 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.15rem 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.2rem;
+  font-size: 0.95rem;
+}
+thead tr { background: #3a2316; }
+th, td {
+  border: 1px solid var(--line);
+  padding: 0.52rem 0.58rem;
+  text-align: left;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: #26170f; }
+@media (max-width: 760px) {
+  .layout { width: min(1100px, calc(100vw - 1rem)); }
+  .site-header {
+    padding: 0.75rem 0.85rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .card { padding: 0.8rem; }
+  .doc-links { grid-template-columns: 1fr; }
+  .pipeline-main {
+    flex-direction: column;
+  }
+  .pipeline-arrow {
+    transform: rotate(90deg);
+  }
+  .pipeline-branch-wrap {
+    border-top: 0;
+    padding-top: 0.2rem;
+  }
+  .pipeline-branch {
+    grid-template-columns: 1fr;
+  }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  td {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding-left: 0.7rem;
+  }
+  tr { margin-bottom: 0.6rem; }
+}</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="site-header">
+      <div class="brand">
+        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <div class="brand-text">
+          <div class="brand-app">security-gate</div>
+          <div class="brand-company">solardome</div>
+        </div>
+      </div>
+      <nav class="site-nav">
+<a href="architecture.html">Architecture</a>
+<a href="core-decision-engine.html">Core Decision Engine</a>
+<a href="governance-accepted-risk.html" aria-current="page">Governance: Accepted Risk</a>
+<a href="llm-boundary.html">LLM Boundary</a>
+<a href="modules.html">Modules</a>
+<a href="policy-format.html">Policy Format</a>
+      </nav>
+    </div>
+    <div class="header">
+      <h1>Governance: Accepted Risk</h1>
+      <p>Generated from governance-accepted-risk.md</p>
+    </div>
+    <article class="card">
+
+<h1 id="governance-accepted-risk">Governance: Accepted Risk</h1>
+<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document defines the justification workflow for accepted risks. It is consistent with <code>docs/core-decision-engine.md</code> and <code>docs/policy-format.md</code>, which remain the authoritative sources for deterministic decision logic, escalation behavior, and suppression invariants. This document specifies <strong>governance semantics only</strong> (schema, validation, approvals, lifecycle) and MUST NOT override any normative rules in the core decision engine.</p>
+<h2 id="purpose">Purpose</h2>
+<ul>
+<li>Provide a time-bound, approved mechanism to accept risk.</li>
+<li>Ensure accepted risks are scoped, auditable, and expire automatically.</li>
+<li>Enforce escalation rules when accepted risks expire.</li>
+</ul>
+<h2 id="storage-location-mvp">Storage Location (MVP)</h2>
+<ul>
+<li>Accepted risk records are stored in a <strong>repo-local file</strong>.</li>
+<li>The file path is provided to the CLI or context input.</li>
+<li>No external systems or network calls are used in MVP.</li>
+</ul>
+<h2 id="accepted-risk-schema">Accepted Risk Schema</h2>
+<p>All fields are required unless marked optional.</p>
+<table><thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead><tbody>
+<tr><td>risk_id</td><td>string</td><td>Unique ID for tracking.</td></tr>
+<tr><td>title</td><td>string</td><td>Short label.</td></tr>
+<tr><td>rationale</td><td>string</td><td>Justification and business context.</td></tr>
+<tr><td>owner</td><td>string</td><td>Responsible owner (name or team).</td></tr>
+<tr><td>ticket</td><td>string</td><td>Tracking ticket or change record.</td></tr>
+<tr><td>stage_scope</td><td>array</td><td>Allowed stages (pr, main, release, prod).</td></tr>
+<tr><td>environment_scope</td><td>array</td><td>Allowed environments (dev, staging, prod, etc.).</td></tr>
+<tr><td>finding_selector</td><td>object</td><td>Deterministic match criteria.</td></tr>
+<tr><td>effects</td><td>array</td><td>List of effects (may be empty for governance-only); valid value: suppress_from_scoring.</td></tr>
+<tr><td>allow_warn_in_prod</td><td>boolean</td><td>Explicitly allow WARN in prod (default false).</td></tr>
+<tr><td>approvals</td><td>array</td><td>List of approver records.</td></tr>
+<tr><td>created_at</td><td>RFC3339</td><td>Creation timestamp.</td></tr>
+<tr><td>updated_at</td><td>RFC3339</td><td>Last update timestamp.</td></tr>
+<tr><td>expires_at</td><td>RFC3339</td><td>Expiry timestamp (required).</td></tr>
+<tr><td>status</td><td>enum</td><td>active, expired, revoked.</td></tr>
+<tr><td>audit</td><td>array (optional)</td><td>Append-only audit events.</td></tr>
+</tbody></table>
+<p>Legacy-to-canonical mapping for stages is defined canonically in <code>docs/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong>. For convenience, this document uses the same canonical tokens (pr, main, release, prod) when describing <code>stage_scope</code>.</p>
+<h3 id="findingselector-keys">finding_selector Keys</h3>
+<p>All listed fields must match if present:</p>
+<ul>
+<li>domain</li>
+<li>cve_id</li>
+<li>fingerprint (required for Accepted Risk; see below)</li>
+<li>title_contains</li>
+<li>location_contains</li>
+<li>source_scanner</li>
+<li>severity</li>
+</ul>
+<p><strong>Accepted Risk vs Exception selectors:</strong> Accepted Risk finding_selector <strong>must</strong> include <code>fingerprint</code> for deterministic matching. Unlike policy exceptions (which may use domain, cve_id, title_contains, etc. without fingerprint for broad false-positive suppression), accepted risks require fingerprint so that suppression and prod WARN coverage are stable across runs. The <code>fingerprint</code> key must reference the canonical fingerprint described in <code>docs/core-decision-engine.md</code>, not the scanner-provided <code>finding_id</code>. Records that omit fingerprint are governance-invalid and ignored. Supplemental keys (domain, cve_id, etc.) may narrow the match but do not substitute for fingerprint.</p>
+<h2 id="validation-rules">Validation Rules</h2>
+<ul>
+<li>stage_scope and environment_scope are mandatory and non-empty.</li>
+<li>expires_at must be a valid future timestamp at creation time.</li>
+<li>status must be one of: active, expired, revoked.</li>
+<li>effects cannot apply to hard-stop domains.</li>
+<li>allow_warn_in_prod must be explicitly true to allow WARN in prod.</li>
+<li>finding_selector must be specific enough to avoid broad suppression.</li>
+<li>finding_selector must target fingerprint for deterministic matching; other fields are supplemental.</li>
+<li>When stage_scope includes prod and the finding_selector targets severity HIGH or CRITICAL, at least one approval must carry <code>role=&quot;security&quot;</code>; without it the record is governance-invalid, ignored for gating and coverage, and emits a governance warning.</li>
+</ul>
+<h3 id="engine-enforced-validation-behavior">Engine-Enforced Validation Behavior</h3>
+<p>The deterministic engine MUST enforce the following behaviors when loading and evaluating accepted risk records:</p>
+<ul>
+<li><strong>Parse/shape errors</strong> (malformed JSON/YAML, missing required fields such as risk_id,</li>
+</ul>
+<p>stage_scope, environment_scope, expires_at, or status outside the allowed enum) are treated as <strong>accepted risk parse/validation failures</strong> and therefore as <strong>fatal errors</strong> (see &quot;Fatal Errors and Fail-Closed Defaults (Authoritative)&quot; in <code>docs/modules.md</code>).</p>
+<ul>
+<ul>
+<li>For stage=main/release/prod: fatal error ⇒ BLOCK with minimal decision.json +</li>
+</ul>
+</ul>
+<p>error metadata.</p>
+<ul>
+<ul>
+<li>For stage=pr: fatal error ⇒ WARN (exit_code=1) with low-trust defaults ONLY if</li>
+</ul>
+</ul>
+<p>scanner input is present and hashable; otherwise BLOCK.</p>
+<ul>
+<li><strong>Schema-valid but governance-invalid records</strong> (for example, effects attempting to</li>
+</ul>
+<p>suppress hard-stop domains, allow_warn_in_prod=true without required approvals, or finding_selector that does not include a canonical fingerprint) MUST be:</p>
+<ul>
+<ul>
+<li>Ignored for gating and suppression behavior (never considered &quot;active&quot;).</li>
+<li>Recorded in <code>decision_trace</code> as governance warnings, including the offending</li>
+</ul>
+</ul>
+<p>risk_id and reason.</p>
+<ul>
+<li>Records with <strong>expires_at in the past</strong> or <code>status=expired</code>/<code>status=revoked</code> at</li>
+</ul>
+<p>evaluation time are never considered active for suppression or coverage, but still participate in expiry-based escalation as defined in this document and in the core decision engine.</p>
+<h2 id="approval-rules">Approval Rules</h2>
+<ul>
+<li>All accepted risks require at least one approval and approval records must include approver name, role, and timestamp.</li>
+<li>If stage_scope includes prod <strong>and</strong> a matched finding is HIGH or CRITICAL, at least one approver must have the role &quot;security&quot;. The engine enforces this requirement deterministically: records without the security-role approver are governance-invalid and therefore ignored for suppression or coverage while emitting governance warnings.</li>
+</ul>
+<h2 id="precedence-rules">Precedence Rules</h2>
+<ul>
+<li>Policy rules are tighten-only except that an explicitly approved Accepted Risk may prevent warn_to_block escalation for its scoped findings when allow_warn_in_prod=true.</li>
+<li>Accepted Risk never overrides hard-stop domains (SECRET, MALWARE, PROVENANCE) and never overrides provenance/signing hard-stops.</li>
+<li>Accepted Risk affects only the scoped finding fingerprints; unrelated findings or conditions may still cause BLOCK.</li>
+<li>If any valid Accepted Risk covers at least one finding with severity HIGH or CRITICAL in the current stage (and env if scoped), then the final decision MUST be at least WARN, regardless of suppress_from_scoring removing all findings from the scoring set.</li>
+<li>Decision trace MUST record accepted_risks_applied with matched_fingerprints and whether allow_warn_in_prod was used.</li>
+</ul>
+<h2 id="prod-warn-coverage-requirements">Prod WARN Coverage Requirements</h2>
+<p>Prod WARN outcomes escalate to BLOCK unless a valid Accepted Risk with <code>allow_warn_in_prod=true</code> covers every <code>warn_causing_fingerprint</code>. The warn-causing set is deterministic: all non-hard-stop findings in the scoring set with <code>severity &gt;= HIGH</code>, or the single top finding by the Deterministic Finding Ordering when severity data is missing. Partial coverage is insufficient—any uncovered warn-causing fingerprint preserves the WARN → BLOCK escalation and the final decision remains BLOCK. Hard-stop findings are never affected by this rule.</p>
+<h2 id="expiry-based-escalation">Expiry-Based Escalation</h2>
+<ul>
+<li>Expired accepted risks are ignored and recorded as governance warnings.</li>
+<li>For release/prod stages, if an expired accepted risk would have covered a HIGH or</li>
+</ul>
+<p>CRITICAL finding, the decision is forced to BLOCK (per core escalation rules).</p>
+<ul>
+<li>Expiry events are recorded in the decision trace.</li>
+</ul>
+<h2 id="accepted-risk-lifecycle-decision-influence-summary">Accepted Risk Lifecycle &amp; Decision Influence (Summary)</h2>
+<p>Lifecycle states:</p>
+<ul>
+<li><strong>active</strong>: <code>status=active</code>, current time is <strong>before</strong> <code>expires_at</code>, and the current <code>stage_scope</code> and <code>environment_scope</code> include the evaluation context. Only active records are considered by the engine for scoring suppression, WARN floors, prod WARN coverage, or <code>require_accepted_risk</code>.</li>
+<li><strong>expired</strong>: <code>now &gt;= expires_at</code> or <code>status=expired</code>. Expired records are ignored for all gating and coverage decisions but still appear in governance warnings and audit trails (see <strong>Expiry-Based Escalation</strong>).</li>
+<li><strong>revoked</strong>: <code>status=revoked</code> (set manually by the owner). Revoked records are never considered active; they remain only as historical governance/audit evidence.</li>
+</ul>
+<p>An accepted risk is therefore considered <strong>“active”</strong> by the engine <strong>only</strong> when all of the following are true:</p>
+<ul>
+<li><code>status=active</code></li>
+<li>current UTC time <code>&lt; expires_at</code></li>
+<li>current stage and environment are within <code>stage_scope</code> and <code>environment_scope</code></li>
+</ul>
+<p>Detailed behavior is defined in <strong>Precedence Rules</strong>, <strong>Prod WARN Coverage Requirements</strong>, and <strong>Expiry-Based Escalation</strong> in this document, and in <strong>Escalation Logic (Stage and Expiry)</strong> and <strong>Prod WARN Escalation and allow_warn_in_prod Coverage</strong> in <code>docs/core-decision-engine.md</code>, plus <strong>Deterministic Evaluation Order</strong>, <strong>Accepted Risk Objects (Justified Risk Acceptance)</strong>, and <strong>Precedence Rules</strong> in <code>docs/policy-format.md</code>.</p>
+<table><thead><tr><th>Stage</th><th>Scoring suppression (effects)</th><th>WARN floor (HIGH/CRITICAL coverage)</th><th>Prod WARN coverage (allow_warn_in_prod)</th><th>Expiry escalation</th><th>Interaction with require_accepted_risk</th></tr></thead><tbody>
+<tr><td>pr</td><td>Active, in-scope records with <code>effects</code> containing <code>suppress_from_scoring</code> may remove non-hard-stop findings from the scoring set; expired/revoked records are ignored.</td><td>Any active, in-scope record covering at least one HIGH/CRITICAL finding enforces a final outcome of at least WARN.</td><td>Not applicable (prod-only behavior).</td><td>If an accepted risk that would have applied is expired, the final outcome is at least WARN.</td><td>Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to WARN.</td></tr>
+<tr><td>main</td><td>Same as pr: active, in-scope records may suppress non-hard-stop findings; expired/revoked are ignored.</td><td>Same WARN floor: active coverage of HIGH/CRITICAL enforces a final outcome of at least WARN.</td><td>Not applicable (prod-only behavior).</td><td>If an accepted risk that would have applied is expired, the final outcome is at least WARN.</td><td>Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to BLOCK.</td></tr>
+<tr><td>release</td><td>Same suppression behavior: active, in-scope records may suppress non-hard-stop findings; expired/revoked are ignored.</td><td>Same WARN floor: active coverage of HIGH/CRITICAL enforces a final outcome of at least WARN.</td><td>Not applicable (prod-only behavior).</td><td>If an accepted risk that would have applied is expired, the final outcome is forced to BLOCK.</td><td>Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to BLOCK.</td></tr>
+<tr><td>prod</td><td>Same suppression behavior: active, in-scope records may suppress non-hard-stop findings; expired/revoked are ignored.</td><td>Same WARN floor: active coverage of HIGH/CRITICAL enforces a final outcome of at least WARN.</td><td>Active, in-scope records with <code>allow_warn_in_prod=true</code> can prevent WARN→BLOCK escalation <strong>only</strong> when they cover every <code>warn_causing_fingerprint</code>; partial coverage still escalates to BLOCK.</td><td>If an accepted risk that would have applied is expired, the final outcome is forced to BLOCK.</td><td>Missing an active, in-scope accepted risk for required fingerprints tightens the outcome to BLOCK.</td></tr>
+</tbody></table>
+<h2 id="status-lifecycle-and-ownership">Status Lifecycle and Ownership</h2>
+<p>Accepted risks begin in <code>status=active</code> and must transition to <code>expired</code> or <code>revoked</code> when appropriate. The lifecycle is enforced as follows; only item (1) below is part of the MVP engine behavior:</p>
+<ol>
+<li><strong>CLI validation per run (engine behavior, read-only):</strong> Before scoring, the deterministic engine compares the current UTC timestamp with each accepted risk&#x27;s <code>expires_at</code> and <code>status</code>. When <code>now &gt;= expires_at</code> and <code>status</code> is still <code>active</code>, the engine treats the risk as expired <strong>for this evaluation</strong>, records a <code>decision_trace</code> event, and honors its governance rules as inactive. A similar check treats any <code>status=revoked</code> record as inactive immediately; <code>revoked</code> entries are never considered for <code>allow_warn_in_prod</code> or <code>suppress_from_scoring</code>. The engine MUST NOT modify or rewrite the accepted risk file; it derives effective status at runtime and reflects it only in decision artifacts and trace events.</li>
+<li><strong>Governance sweep and notifications (operational practice, out of MVP engine scope):</strong> A periodic governance review (for example, a manual checklist or externally scheduled job owned by the <code>owner</code> field, usually a security or platform team) may re-scan the accepted risk file, reconcile <code>expires_at</code> against the recorded <code>status</code>, notify owners before expiry, and flag any inconsistencies for remediation. These sweeps and notifications are guidance for good governance hygiene and are <strong>not</strong> required or implemented by the CLI or core engine.</li>
+<li><strong>Manual updates and revocation (operational practice):</strong> The risk <code>owner</code> is responsible for editing the record to set <code>status=revoked</code> when a mitigation is deployed or the justification changes. Every manual update must add a new <code>audit</code> event describing the action, actor, and timestamp so reviewers can trace the lifecycle. This is a governance responsibility and not automated by the MVP engine.</li>
+</ol>
+<p>Decision trace events surface these transitions so escalation logic can observe them in practice. Every status change (expiry or revocation) that the engine detects at evaluation time MUST emit a <code>decision_trace</code> event such as <code>accepted_risk.status_change</code> with at least:</p>
+<ul>
+<li><code>event_id</code>: unique identifier for the trace event.</li>
+<li><code>timestamp</code>: RFC3339 time of the transition.</li>
+<li><code>risk_id</code>: accepted risk identifier.</li>
+<li><code>status</code>: new status (<code>expired</code> or <code>revoked</code>).</li>
+<li><code>reason</code>: text like <code>expires_at reached</code> or <code>owner revoked</code>.</li>
+<li><code>matched_fingerprints</code>: list of canonical fingerprints that the risk had covered (bounded to 20 entries, consistent with governance events).</li>
+<li><code>stage_scope</code> / <code>environment_scope</code>: to show the contexts the risk applied to.</li>
+</ul>
+<p>These events feed the escalation rules so that, for example, a prod WARN → BLOCK escalation can see that <code>matched_fingerprints</code> no longer have an active accepted risk coverage and escalate accordingly.</p>
+<h2 id="audit-trail">Audit Trail</h2>
+<ul>
+<li>audit is an append-only list of events with timestamp, actor, and action.</li>
+<li>All updates to an accepted risk must add a new audit entry.</li>
+</ul>
+<h2 id="concrete-examples-yaml">Concrete Examples (YAML)</h2>
+<p>Notes:</p>
+<ul>
+<li>effects: [] means governance approval only; it does not change scoring, but Governance Decision Floor may still enforce WARN for HIGH/CRITICAL coverage.</li>
+<li>If effects include suppress_from_scoring and suppression removes all findings (release_risk becomes 0), a valid accepted risk covering HIGH/CRITICAL in the current stage/environment still yields a final outcome of at least WARN.</li>
+<li>To influence outcomes beyond the WARN floor, use require_accepted_risk policy gates or allow_warn_in_prod=true in prod (for covered fingerprints only).</li>
+</ul>
+<pre><code>
+- risk_id: AR-2026-0001
+  title: &quot;CRITICAL CVE in base image, no fix&quot;
+  rationale: &quot;Vendor has no patch; compensating controls in place.&quot;
+  owner: &quot;platform-security&quot;
+  ticket: &quot;SEC-1234&quot;
+  stage_scope: [release]
+  environment_scope: [staging]
+  finding_selector:
+    fingerprint: &quot;fp-3f2c9b7a&quot;
+    domain: VULNERABILITY
+    severity: CRITICAL
+    cve_id: CVE-2025-9999
+  effects: []
+  allow_warn_in_prod: false
+  approvals:
+    - name: &quot;Security Lead&quot;
+      role: &quot;security&quot;
+      approved_at: &quot;2026-02-01T08:00:00Z&quot;
+  created_at: &quot;2026-02-01T07:50:00Z&quot;
+  updated_at: &quot;2026-02-01T07:50:00Z&quot;
+  expires_at: &quot;2026-02-15T00:00:00Z&quot;
+  status: active
+
+- risk_id: AR-2026-0002
+  title: &quot;Legacy dependency with HIGH CVE in prod&quot;
+  rationale: &quot;Migration underway; temporary acceptance with strict monitoring.&quot;
+  owner: &quot;app-team&quot;
+  ticket: &quot;APP-5678&quot;
+  stage_scope: [prod]
+  environment_scope: [prod]
+  finding_selector:
+    fingerprint: &quot;fp-9a7d2c14&quot;
+    domain: VULNERABILITY
+    severity: HIGH
+    title_contains: &quot;legacy-lib&quot;
+  effects: []
+  allow_warn_in_prod: true
+  approvals:
+    - name: &quot;Security Lead&quot;
+      role: &quot;security&quot;
+      approved_at: &quot;2026-02-01T09:00:00Z&quot;
+    - name: &quot;Engineering Manager&quot;
+      role: &quot;engineering&quot;
+      approved_at: &quot;2026-02-01T09:05:00Z&quot;
+  created_at: &quot;2026-02-01T08:30:00Z&quot;
+  updated_at: &quot;2026-02-01T08:30:00Z&quot;
+  expires_at: &quot;2026-02-20T00:00:00Z&quot;
+  status: active
+</code></pre>
+<h3 id="partial-coverage-still-blocks">Partial Coverage Still BLOCKs</h3>
+<p>If a prod WARN outcome is due to multiple warn-causing fingerprints and an approved accepted risk covers only a subset of them (even with <code>allow_warn_in_prod=true</code>), escalation still applies and the final result is BLOCK. Complete fingerprint coverage is required before the policy considers WARN acceptable via <code>allow_warn_in_prod</code>.</p>
+<h2 id="acceptance-criteria">Acceptance Criteria</h2>
+<ul>
+<li><input type="checkbox" > Schema includes scope, approvals, expiry, and audit trail.</li>
+<li><input type="checkbox" > Validation rules enforce time-bound, scoped, and specific records.</li>
+<li><input type="checkbox" > Approval rules include security approval for prod + critical/high.</li>
+<li><input type="checkbox" > Expiry escalation aligns with the core decision engine.</li>
+<li><input type="checkbox" > Examples are concrete and consistent with policy format.</li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>

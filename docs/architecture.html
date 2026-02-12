@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Architecture</title>
+  <style>:root {
+  --bg: #120c08;
+  --panel: #1d1410;
+  --ink: #ffe7c2;
+  --muted: #d2a777;
+  --accent: #ff9f2f;
+  --accent-soft: #3a2416;
+  --line: #5e3a22;
+  --code-bg: #120b07;
+  --code-ink: #ffd8a8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 520px at 0% 0%, #ff8b2f55 0%, transparent 60%),
+    radial-gradient(760px 460px at 100% 0%, #ffbf3f2e 0%, transparent 62%),
+    radial-gradient(860px 480px at 50% 100%, #ff6a0035 0%, transparent 65%),
+    var(--bg);
+}
+.layout {
+  width: min(1100px, calc(100vw - 2.4rem));
+  margin: 1.2rem auto 2rem;
+}
+.site-header {
+  padding: 0.85rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(27, 17, 12, 0.92);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.brand img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #2a1a12;
+  padding: 2px;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.brand-app {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.brand-company {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: #ffb24a;
+  text-decoration: none;
+  font-weight: 600;
+}
+.site-nav a:hover {
+  text-decoration: underline;
+}
+.header {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(40, 25, 17, 0.82);
+  backdrop-filter: blur(6px);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+}
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.2rem, 2.5vw, 1.7rem);
+}
+.header p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+.card {
+  background: var(--panel);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 35px -28px rgba(12, 35, 66, 0.45);
+  padding: clamp(1rem, 2.4vw, 2rem);
+}
+.doc-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+.doc-link {
+  display: block;
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: #2b1a11;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+.doc-link:hover {
+  border-color: #a05b22;
+  background: #3a2316;
+}
+.doc-link-title {
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+.doc-link-file {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.pipeline-diagram {
+  margin: 0.7rem 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #25170f 0%, #1b120d 100%);
+}
+.pipeline-main {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  flex-wrap: nowrap;
+}
+.pipeline-step {
+  flex: 1 1 0;
+  border: 1px solid #6b4127;
+  border-radius: 10px;
+  background: #2b1a11;
+  padding: 0.6rem;
+  min-width: 0;
+}
+.pipeline-step-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.pipeline-step-sub {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+.pipeline-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb24a;
+  font-weight: 700;
+}
+.pipeline-branch-wrap {
+  margin-top: 0.55rem;
+  border-top: 1px dashed #7d4e2f;
+  padding-top: 0.55rem;
+}
+.pipeline-branch {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 0.6rem;
+  align-items: start;
+}
+.pipeline-branch-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.pipeline-branch-arrow {
+  color: #ffb24a;
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+.pipeline-note {
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.25;
+}
+h1 { font-size: 2rem; }
+h2 {
+  font-size: 1.35rem;
+  border-bottom: 2px solid #4d2f1b;
+  padding-bottom: 0.2rem;
+}
+h3 { font-size: 1.08rem; }
+p { margin: 0.45rem 0 0.95rem; }
+a {
+  color: #ffb24a;
+  text-underline-offset: 3px;
+}
+code {
+  background: #2d1a11;
+  border: 1px solid #6a4328;
+  padding: 0.1rem 0.32rem;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+pre {
+  margin: 0.75rem 0 1rem;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.9rem;
+  border-radius: 10px;
+  overflow: auto;
+  border: 1px solid #5a3a24;
+}
+pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+ul, ol {
+  margin: 0.35rem 0 1rem 1.25rem;
+  padding: 0;
+}
+li { margin: 0.3rem 0; }
+li input[type="checkbox"] {
+  pointer-events: none;
+  margin-right: 0.45rem;
+  transform: translateY(1px);
+}
+blockquote {
+  margin: 0.8rem 0 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+}
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.15rem 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.2rem;
+  font-size: 0.95rem;
+}
+thead tr { background: #3a2316; }
+th, td {
+  border: 1px solid var(--line);
+  padding: 0.52rem 0.58rem;
+  text-align: left;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: #26170f; }
+@media (max-width: 760px) {
+  .layout { width: min(1100px, calc(100vw - 1rem)); }
+  .site-header {
+    padding: 0.75rem 0.85rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .card { padding: 0.8rem; }
+  .doc-links { grid-template-columns: 1fr; }
+  .pipeline-main {
+    flex-direction: column;
+  }
+  .pipeline-arrow {
+    transform: rotate(90deg);
+  }
+  .pipeline-branch-wrap {
+    border-top: 0;
+    padding-top: 0.2rem;
+  }
+  .pipeline-branch {
+    grid-template-columns: 1fr;
+  }
+  table, thead, tbody, th, td, tr { display: block; }
+  thead { display: none; }
+  td {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding-left: 0.7rem;
+  }
+  tr { margin-bottom: 0.6rem; }
+}</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="site-header">
+      <div class="brand">
+        <img src="../images/solardome-logo2.png" alt="solardome logo">
+        <div class="brand-text">
+          <div class="brand-app">security-gate</div>
+          <div class="brand-company">solardome</div>
+        </div>
+      </div>
+      <nav class="site-nav">
+<a href="architecture.html" aria-current="page">Architecture</a>
+<a href="core-decision-engine.html">Core Decision Engine</a>
+<a href="governance-accepted-risk.html">Governance: Accepted Risk</a>
+<a href="llm-boundary.html">LLM Boundary</a>
+<a href="modules.html">Modules</a>
+<a href="policy-format.html">Policy Format</a>
+      </nav>
+    </div>
+    <div class="header">
+      <h1>Architecture</h1>
+      <p>Generated from architecture.md</p>
+    </div>
+    <article class="card">
+<h2 id="documentation-index">Documentation Index</h2>
+<div class="doc-links">
+<a class="doc-link" href="core-decision-engine.html"><div class="doc-link-title">Core Decision Engine</div><div class="doc-link-file">core-decision-engine.md</div></a>
+<a class="doc-link" href="governance-accepted-risk.html"><div class="doc-link-title">Governance: Accepted Risk</div><div class="doc-link-file">governance-accepted-risk.md</div></a>
+<a class="doc-link" href="llm-boundary.html"><div class="doc-link-title">LLM Boundary</div><div class="doc-link-file">llm-boundary.md</div></a>
+<a class="doc-link" href="modules.html"><div class="doc-link-title">Modules</div><div class="doc-link-file">modules.md</div></a>
+<a class="doc-link" href="policy-format.html"><div class="doc-link-title">Policy Format</div><div class="doc-link-file">policy-format.md</div></a>
+</div>
+
+<h1 id="architecture">Architecture</h1>
+<p>Authority Notice This document is descriptive and non-authoritative. Design intent lives in design/architecture.prompt.md, deterministic decision logic and evaluation order live in docs/core-decision-engine.md, and the policy schema lives in docs/policy-format.md. In conflicts, those authoritative sources prevail and this document must not override or reinterpret them.</p>
+<p>This document defines the system architecture for security-gate. It is consistent with <code>docs/core-decision-engine.md</code> and focuses on components, data flow, trust/provenance, and safe defaults. It avoids implementation details.</p>
+<h2 id="goals">Goals</h2>
+<ul>
+<li>Deterministic, stage-aware CI/CD decisions (ALLOW, WARN, BLOCK).</li>
+<li>Local execution only; no network dependencies.</li>
+<li>Full decision trace with auditable inputs and outputs.</li>
+<li>Clear boundary between deterministic logic and optional LLM explanation.</li>
+</ul>
+<h2 id="high-level-diagram">High-Level Diagram</h2>
+<div class="pipeline-diagram" aria-label="Security-gate pipeline flow"><div class="pipeline-main"><div class="pipeline-step"><div class="pipeline-step-title">Input Collection</div><div class="pipeline-step-sub">Trivy JSON, stdin, context.json, policy, accepted risk file</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Ingest</div><div class="pipeline-step-sub">ingest/trivy parses scanner payloads and captures metadata</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Normalize</div><div class="pipeline-step-sub">Map to unified finding schema</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Score</div><div class="pipeline-step-sub">Compute risk_score and trust_score with provenance/trust signals</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Policy</div><div class="pipeline-step-sub">Apply noise budget, exceptions, accepted risk, and stage matrix</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Decision Trace</div><div class="pipeline-step-sub">Ordered auditable decision events</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Report</div><div class="pipeline-step-sub">Write decision.json and summary.md</div></div></div><div class="pipeline-branch-wrap"><div class="pipeline-branch"><div class="pipeline-branch-label"><span class="pipeline-branch-arrow">↓</span>Side branch from Decision Trace</div><div class="pipeline-step"><div class="pipeline-step-title">LLM Explanation (Optional)</div><div class="pipeline-step-sub">Consumes sanitized trace and returns non-authoritative text only</div></div></div><div class="pipeline-note">Deterministic boundary: LLM output never changes scoring, policy, or final decision.</div></div></div>
+<h2 id="module-boundaries">Module Boundaries</h2>
+<ul>
+<li>cmd/cli orchestrates the pipeline and owns exit code behavior.</li>
+<li>ingest/trivy parses scanner outputs and hashes inputs.</li>
+<li>normalize converts scanner-specific data to the unified finding schema.</li>
+<li>score computes risk_score and trust_score deterministically.</li>
+<li>policy applies noise budget, exceptions, accepted risks, and stage decision matrix.</li>
+<li>decision_trace records ordered trace events and all authoritative inputs.</li>
+<li>governance (accepted risk) validates time-bound justifications and scope.</li>
+<li>report renders decision.json, summary.md, and optional HTML.</li>
+<li>llm consumes sanitized trace data and produces non-authoritative text only.</li>
+</ul>
+<h2 id="data-flow-authoritative">Data Flow (Authoritative)</h2>
+<p>At a high level, data flows from ingest → normalize → score → policy → decision_trace → report, with optional LLM explanation consuming sanitized trace data. Evaluation order for governance, scoring, noise budget, policy, and decision matrix is defined canonically in <code>docs/core-decision-engine.md</code> under <strong>“Canonical Deterministic Evaluation Order (Authoritative)”</strong> and is not re-specified here.</p>
+<h2 id="deterministic-vs-ai-boundary">Deterministic vs AI Boundary</h2>
+<ul>
+<li>Deterministic boundary includes ingest, normalize, score, policy, and decision_trace.</li>
+<li>LLM is explanation-only and never affects risk scoring, policy, or decisions.</li>
+<li>LLM input is sanitized and minimized; output is labeled non-authoritative.</li>
+</ul>
+<h2 id="trust-and-provenance-flow">Trust and Provenance Flow</h2>
+<ul>
+<li>Trust signals are gathered from context and scanner metadata (pinned versions,</li>
+</ul>
+<p>freshness, input integrity, artifact signing, provenance level, build context).</p>
+<ul>
+<li>trust_score is computed deterministically and stored in decision.json.</li>
+<li>trust_score directly affects release_risk via the trust modifier and can be used</li>
+</ul>
+<p>in policy rules.</p>
+<ul>
+<li>Missing or unknown signals reduce trust_score and tighten gating.</li>
+<li>All decision-affecting inputs (scanner outputs, context input, policy file, accepted risk file) are hashed and recorded in both decision.json and the decision_trace so the architecture produces a fully audit-ready snapshot of every influence on the decision.</li>
+<li>Provenance and signing are enforced in two layers: explicit synthetic findings in <code>domain=PROVENANCE</code> that hard-stop BLOCK when deterministic requirements fail, and trust penalties that only adjust <code>trust_score</code>.</li>
+<ul>
+<li>Synthetic provenance hard stops cover <code>PROVENANCE_INVALID_SIGNATURE</code>, <code>PROVENANCE_MISMATCH</code>, <code>PROVENANCE_UNSIGNED_ARTIFACT</code>, and <code>PROVENANCE_INSUFFICIENT_LEVEL</code>, are normalized before scoring, and bypass governance suppressions and noise budget.</li>
+<li>Trust penalties only apply when the policy does not require the evidence (e.g., unsigned/unknown signatures or provenance_level=unknown without a minimum requirement).</li>
+<li>Deterministic evaluation always resolves these provenance hard stops before risk scoring and noise budgeting so that provenance failures block regardless of numeric scores.</li>
+</ul>
+</ul>
+<h2 id="stage-enum-canonical">Stage Enum (Canonical)</h2>
+<p>The canonical stage enum and legacy-to-canonical mapping are defined in <code>docs/core-decision-engine.md</code> under <strong>“Stage Enum (Canonical)”</strong> and are the single source of truth. Informally for architecture discussions: stages are <code>pr</code>, <code>main</code>, <code>release</code>, and <code>prod</code> (with legacy terms like PR/feature, merge/main, and deploy-to-prod mapping to those canonical tokens).</p>
+<h2 id="failure-modes-and-safe-defaults">Failure Modes and Safe Defaults</h2>
+<ul>
+<li>Hard-stop conditions are defined authoritatively in <code>docs/core-decision-engine.md</code> under <strong>“Hard-Stop Conditions (Authoritative)”</strong>.</li>
+<li>These hard-stop conditions are never suppressible, bypass noise budgets, and always force BLOCK regardless of release risk or trust.</li>
+<li>input_sha256 is mandatory and computed at ingest; if it cannot be computed, the decision is fail-closed for stage=main, release, and prod. For stage=pr, proceed only with a recorded warning and low-trust defaults.</li>
+<li>scan_timestamp must be present; if missing from scanner output, substitute ingest_time and record timestamp_source=ingest.</li>
+<li>pr may produce WARN for partial data only when trust_score remains above the lowest bucket and no hard-stop exists.</li>
+<li>main, release, and prod default to fail-closed on any fatal ingest/normalize/score/policy error.</li>
+<li>decision_trace always records failures, substitutions, and the safe-default path taken.</li>
+</ul>
+<h2 id="extensibility-approach">Extensibility Approach</h2>
+<ul>
+<li>New scanners are added as ingest adapters that map to the unified schema.</li>
+<li>New domains must define severity mapping and any hard-stop rules.</li>
+<li>Policy-as-code is versioned and evaluated deterministically; rules are traceable.</li>
+<li>Accepted risk and exception handling are modular and time-bound.</li>
+<li>Report formats can be extended without affecting decision logic.</li>
+</ul>
+<h2 id="acceptance-criteria">Acceptance Criteria</h2>
+<ul>
+<li><input type="checkbox" > Architecture diagram reflects the deterministic pipeline and optional LLM boundary.</li>
+<li><input type="checkbox" > Module boundaries match the core decision engine responsibilities.</li>
+<li><input type="checkbox" > Data flow includes ingest, normalize, score, policy, decision trace, and report.</li>
+<li><input type="checkbox" > Trust/provenance flow and its effect on decisions is explicit.</li>
+<li><input type="checkbox" > Failure modes describe fail-closed behavior for merge/release/prod.</li>
+<li><input type="checkbox" > Extensibility guidance does not alter deterministic decision logic.</li>
+</ul>
+    </article>
+  </div>
+</body>
+</html>
