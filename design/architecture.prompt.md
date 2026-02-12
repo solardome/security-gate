@@ -107,7 +107,7 @@ INPUTS:
 
 OUTPUTS:
 - Deterministic decision artifacts:
-  - decision.json (machine-readable, authoritative)
+  - report.json (machine-readable, authoritative)
   - summary.md (human-readable)
   - optional static HTML report
 - CI-friendly exit code (per contract above)
@@ -171,7 +171,7 @@ Specify in detail:
 5) Escalation logic across stages and via expiry
 6) Noise budget mechanism with guardrails
 7) False positives, exceptions, Accepted Risk governance
-8) decision.json schema (authoritative)
+8) report.json schema (authoritative)
 9) Deterministic recommended_next_steps
 10) Example walkthroughs:
     - same HIGH CVE in PR vs prod

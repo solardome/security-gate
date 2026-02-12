@@ -500,7 +500,7 @@ def architecture_diagram_html() -> str:
         '<div class="pipeline-arrow">→</div>'
         '<div class="pipeline-step"><div class="pipeline-step-title">Decision Trace</div><div class="pipeline-step-sub">Ordered auditable decision events</div></div>'
         '<div class="pipeline-arrow">→</div>'
-        '<div class="pipeline-step"><div class="pipeline-step-title">Report</div><div class="pipeline-step-sub">Write decision.json and summary.md</div></div>'
+        '<div class="pipeline-step"><div class="pipeline-step-title">Report</div><div class="pipeline-step-sub">Write report.json and summary.md</div></div>'
         '</div>'
         '<div class="pipeline-branch-wrap">'
         '<div class="pipeline-branch">'

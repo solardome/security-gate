@@ -56,17 +56,17 @@ Produce:
 """
 
 ## Output Schema (Non-Authoritative)
-The LLM output is a separate artifact referenced from decision.json.
+The LLM output is a separate artifact referenced from report.json.
 It must be clearly labeled and must not introduce new actions.
 
 Minimum fields:
 - non_authoritative: true
 - decision_status: ALLOW | WARN | BLOCK (copied)
 - explanation: string
-- recommended_next_steps: array of step IDs (subset of decision.json)
+- recommended_next_steps: array of step IDs (subset of report.json)
 - references: array of finding_id or decision_trace event IDs
 
-decision.json must include:
+report.json must include:
 - llm_explanation.enabled: boolean
 - llm_explanation.non_authoritative: true
 - llm_explanation.content_ref: string (path or identifier for the LLM artifact)
@@ -74,12 +74,12 @@ decision.json must include:
 ## Grounding and Labeling
 - All LLM text must cite deterministic inputs by ID, not raw data.
 - Every LLM artifact must include the label: "Non-authoritative explanation." 
-- Any mismatch with decision.json is treated as an LLM error and ignored.
+- Any mismatch with report.json is treated as an LLM error and ignored.
 
 ## Acceptance Criteria
 - [ ] Threat model includes prompt injection and data exfiltration risks.
 - [ ] Allowlist and denylist are explicit and conservative.
 - [ ] Redaction and minimization rules are defined.
 - [ ] Safe prompt template enforces explanation-only behavior.
-- [ ] Output schema aligns with decision.json and is non-authoritative.
+- [ ] Output schema aligns with report.json and is non-authoritative.
 - [ ] Grounding and labeling requirements are explicit.

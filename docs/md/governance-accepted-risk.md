@@ -77,7 +77,7 @@ evaluating accepted risk records:
   stage_scope, environment_scope, expires_at, or status outside the allowed enum) are
   treated as **accepted risk parse/validation failures** and therefore as **fatal errors**
   (see "Fatal Errors and Fail-Closed Defaults (Authoritative)" in `docs/md/modules.md`).
-  - For stage=main/release/prod: fatal error ⇒ BLOCK with minimal decision.json +
+  - For stage=main/release/prod: fatal error ⇒ BLOCK with minimal report.json +
     error metadata.
   - For stage=pr: fatal error ⇒ WARN (exit_code=1) with low-trust defaults ONLY if
     scanner input is present and hashable; otherwise BLOCK.

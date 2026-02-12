@@ -117,7 +117,7 @@ All scanner outputs MUST be normalized into this schema before scoring.
 | remediation_hint | string | Deterministic hint only (no LLM). |
 
 ### Required vs Optional Field Handling
-Required for authoritative decision artifacts (must exist in normalized findings and decision.json):
+Required for authoritative decision artifacts (must exist in normalized findings and report.json):
 - finding_id, domain, severity, title, description, source_scanner, source_version, input_sha256, scan_timestamp, timestamp_source, location, evidence_ref.
 
 Mandatory handling rules:
@@ -254,7 +254,7 @@ The following context.json and scanner metadata fields supply each trust signal.
 When a field is absent from context.json or scan metadata, the signal defaults to the unknown/low bucket (0.2 for scanner_pinned, scan_freshness, input_integrity, artifact_signing, provenance_level; 0.3 for build_context_trust). The context.payload schema is defined by the context input format; optional fields may be omitted and trigger the default.
 
 ### Trust Usage
-- trust_score is added to decision.json and is addressable in policy rules.
+- trust_score is added to report.json and is addressable in policy rules.
 - trust_score contributes to release_risk via a trust modifier (see Section 4).
 - scan_timestamp freshness is validated before trust scoring. If the timestamp is more than 5 minutes in the future, or older than `now - max_age_days` (default 30 days) and no explicit override flag is present, the `scan_freshness` signal is forced to the unknown/low bucket (0.2) and the trace records an event (e.g., `scan_timestamp.stale` or `scan_timestamp.future`) with the offending timestamp and configured `max_age_days`. `timestamp_source` must still reflect whether the value came from the scanner or was substituted (ingest). This prevents freshness spoofing from artificially inflating trust.
 
@@ -293,7 +293,7 @@ Release risk is computed over the **scoring set** (after governance suppressions
 3) `max_finding_risk = max(risk_score of considered findings; 0 if none)`.
 4) Compute `release_risk = clamp(max_finding_risk + stage_modifier + exposure_modifier + change_modifier + trust_modifier, 0, 100)`.
 5) Apply the stage decision matrix and escalation logic to derive ALLOW/WARN/BLOCK and exit code.
-6) Emit `decision.json` and the ordered `decision_trace`, including hashes for all decision-affecting inputs and visibility of suppressed findings.
+6) Emit `report.json` and the ordered `decision_trace`, including hashes for all decision-affecting inputs and visibility of suppressed findings.
 
 ## Canonical Deterministic Evaluation Order (Authoritative)
 1) Ingest, validate, and hash every decision-affecting input (scanner outputs, context, policy, accepted risks); fatal errors follow the prescribed fail-closed behavior for each stage.
@@ -305,7 +305,7 @@ Release risk is computed over the **scoring set** (after governance suppressions
 7) Evaluate policy rules in deterministic order, including selectors and tightening actions.
 8) Apply the stage matrix plus escalation logic (prod warn_to_block and allow_warn_in_prod coverage).
 9) Enforce governance floors such as “Accepted Risk covering HIGH/CRITICAL findings mandates at least WARN.”
-10) Emit `decision.json`, `decision_trace`, `summary.md`, and other optional reports, ensuring every suppressed finding remains visible with its `suppressed_by_*` flags.
+10) Emit `report.json`, `decision_trace`, and other optional reports, ensuring every suppressed finding remains visible with its `suppressed_by_*` flags.
 11) Optionally generate an LLM explanation artifact using sanitized, non-authoritative inputs derived from the finalized trace.
 
 Suppressed findings continue to appear in `decision.findings.items` with their suppression flags, and every governance event (exception, accepted risk) records the bounded fingerprint list and suppressed count so the audit trail remains complete even though those findings no longer feed into scoring.
@@ -463,7 +463,7 @@ Rules:
 ## 9) Suppression and Decision Trace Invariants (Authoritative)
 This section defines the canonical behavior for any mechanism that removes findings from
 the scoring set (exceptions, accepted risks, PR-only noise budget) and how those actions
-are reflected in `decision.json` and `decision_trace`.
+are reflected in `report.json` and `decision_trace`.
 
 ### Suppression Semantics
 - Suppression is **logical only**: suppressed findings remain present in
@@ -537,8 +537,8 @@ Decision_trace events MUST remain aligned with this precedence:
   WARN-coverage decisions; they are reflected only via governance warnings and
   expiry-based escalation (Section 6).
 
-## 10) decision.json Schema (Authoritative)
-The engine MUST output decision.json with the following structure:
+## 10) report.json Schema (Authoritative)
+The engine MUST output report.json with the following structure:
 
 - schema_version: string
 - tool_version: string
@@ -742,7 +742,7 @@ Behavior:
 - F2 remains in the scoring set and contributes to `findings.considered_count` and `scoring.max_finding_risk`.
 - Because AR-001 actively covers a HIGH-severity finding (F1) in the current stage/environment, the **Precedence Rules** and governance document’s WARN floor require the final decision to be at least WARN even if `release_risk` computed from F2 alone would otherwise allow ALLOW.
 
-decision.json highlights:
+report.json highlights:
 - `findings.total_count = 2`
 - `findings.considered_count = 1` (F2 only)
 - `findings.items`:
@@ -773,7 +773,7 @@ Behavior:
 - Release risk computed from F3 and context exceeds the BLOCK threshold.
 - Because an expired accepted risk would have covered a CRITICAL finding at release/prod, expiry escalation forces BLOCK even if other factors (e.g., trust) might have allowed WARN.
 
-decision.json highlights:
+report.json highlights:
 - `findings.total_count = 1`, `findings.considered_count = 1`.
 - `findings.items[0]` shows `suppressed_by_accepted_risk=false`.
 - `policy.accepted_risks_applied` does **not** include `AR-002` (it is inactive).
@@ -801,7 +801,7 @@ Behavior:
 - AR-003 covers only `fp-high-a`. Because not **every** `warn_causing_fingerprint` is covered by an active accepted risk with `allow_warn_in_prod=true`, prod WARN→BLOCK escalation remains in effect.
 - If the stage decision matrix initially yields WARN, the global prod escalation upgrades the final decision to BLOCK.
 
-decision.json highlights:
+report.json highlights:
 - `findings.total_count = 2`, `findings.considered_count = 2`.
 - `policy.accepted_risks_applied` includes `AR-003`, and `policy.accepted_risks_coverage` maps `AR-003` to `fingerprints=["fp-high-a"]` only.
 - `policy.allow_warn_in_prod_applied = false` because not all warn-causing fingerprints are covered.
@@ -821,6 +821,6 @@ decision_trace highlights:
 - [ ] Escalation logic covers stage changes and accepted risk expiry.
 - [ ] Noise budget applies only to pr by default and never to hard-stop domains.
 - [ ] Suppression and decision trace invariants are explicitly defined and referenced by other docs.
-- [ ] decision.json schema is authoritative and complete.
+- [ ] report.json schema is authoritative and complete.
 - [ ] Deterministic recommended_next_steps are enumerated.
 - [ ] All required example walkthroughs are present and consistent.

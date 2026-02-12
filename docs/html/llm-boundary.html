@@ -391,16 +391,16 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <p>&quot;&quot;&quot;</p>
 <h2 id="output-schema-non-authoritative">Output Schema (Non-Authoritative)</h2>
-<p>The LLM output is a separate artifact referenced from decision.json. It must be clearly labeled and must not introduce new actions.</p>
+<p>The LLM output is a separate artifact referenced from report.json. It must be clearly labeled and must not introduce new actions.</p>
 <p>Minimum fields:</p>
 <ul>
 <li>non_authoritative: true</li>
 <li>decision_status: ALLOW | WARN | BLOCK (copied)</li>
 <li>explanation: string</li>
-<li>recommended_next_steps: array of step IDs (subset of decision.json)</li>
+<li>recommended_next_steps: array of step IDs (subset of report.json)</li>
 <li>references: array of finding_id or decision_trace event IDs</li>
 </ul>
-<p>decision.json must include:</p>
+<p>report.json must include:</p>
 <ul>
 <li>llm_explanation.enabled: boolean</li>
 <li>llm_explanation.non_authoritative: true</li>
@@ -410,7 +410,7 @@ tr:nth-child(even) td { background: #26170f; }
 <ul>
 <li>All LLM text must cite deterministic inputs by ID, not raw data.</li>
 <li>Every LLM artifact must include the label: &quot;Non-authoritative explanation.&quot;</li>
-<li>Any mismatch with decision.json is treated as an LLM error and ignored.</li>
+<li>Any mismatch with report.json is treated as an LLM error and ignored.</li>
 </ul>
 <h2 id="acceptance-criteria">Acceptance Criteria</h2>
 <ul>
@@ -418,7 +418,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li><input type="checkbox" > Allowlist and denylist are explicit and conservative.</li>
 <li><input type="checkbox" > Redaction and minimization rules are defined.</li>
 <li><input type="checkbox" > Safe prompt template enforces explanation-only behavior.</li>
-<li><input type="checkbox" > Output schema aligns with decision.json and is non-authoritative.</li>
+<li><input type="checkbox" > Output schema aligns with report.json and is non-authoritative.</li>
 <li><input type="checkbox" > Grounding and labeling requirements are explicit.</li>
 </ul>
     </article>

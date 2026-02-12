@@ -456,7 +456,7 @@ tr:nth-child(even) td { background: #26170f; }
 <tr><td>remediation_hint</td><td>string</td><td>Deterministic hint only (no LLM).</td></tr>
 </tbody></table>
 <h3 id="required-vs-optional-field-handling">Required vs Optional Field Handling</h3>
-<p>Required for authoritative decision artifacts (must exist in normalized findings and decision.json):</p>
+<p>Required for authoritative decision artifacts (must exist in normalized findings and report.json):</p>
 <ul>
 <li>finding_id, domain, severity, title, description, source_scanner, source_version, input_sha256, scan_timestamp, timestamp_source, location, evidence_ref.</li>
 </ul>
@@ -604,7 +604,7 @@ tr:nth-child(even) td { background: #26170f; }
 <p>When a field is absent from context.json or scan metadata, the signal defaults to the unknown/low bucket (0.2 for scanner_pinned, scan_freshness, input_integrity, artifact_signing, provenance_level; 0.3 for build_context_trust). The context.payload schema is defined by the context input format; optional fields may be omitted and trigger the default.</p>
 <h3 id="trust-usage">Trust Usage</h3>
 <ul>
-<li>trust_score is added to decision.json and is addressable in policy rules.</li>
+<li>trust_score is added to report.json and is addressable in policy rules.</li>
 <li>trust_score contributes to release_risk via a trust modifier (see Section 4).</li>
 <li>scan_timestamp freshness is validated before trust scoring. If the timestamp is more than 5 minutes in the future, or older than <code>now - max_age_days</code> (default 30 days) and no explicit override flag is present, the <code>scan_freshness</code> signal is forced to the unknown/low bucket (0.2) and the trace records an event (e.g., <code>scan_timestamp.stale</code> or <code>scan_timestamp.future</code>) with the offending timestamp and configured <code>max_age_days</code>. <code>timestamp_source</code> must still reflect whether the value came from the scanner or was substituted (ingest). This prevents freshness spoofing from artificially inflating trust.</li>
 </ul>
@@ -647,9 +647,9 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <h3 id="release-risk-algorithm-deterministic">Release Risk Algorithm (Deterministic)</h3>
 <p>Release risk is computed over the <strong>scoring set</strong> (after governance suppressions and before PR-only noise budget). The canonical pipeline and ordering are defined in <strong>Deterministic Evaluation Order</strong> below; this section summarizes the numeric computation only:</p>
-<p>1) Compute per-finding <code>risk_score</code> for each finding in the scoring set (hard-stops are handled separately and force BLOCK). 2) Apply the PR-only noise budget (stage=pr only) to select the non-hard-stop findings considered for <code>max_finding_risk</code>. 3) <code>max_finding_risk = max(risk_score of considered findings; 0 if none)</code>. 4) Compute <code>release_risk = clamp(max_finding_risk + stage_modifier + exposure_modifier + change_modifier + trust_modifier, 0, 100)</code>. 5) Apply the stage decision matrix and escalation logic to derive ALLOW/WARN/BLOCK and exit code. 6) Emit <code>decision.json</code> and the ordered <code>decision_trace</code>, including hashes for all decision-affecting inputs and visibility of suppressed findings.</p>
+<p>1) Compute per-finding <code>risk_score</code> for each finding in the scoring set (hard-stops are handled separately and force BLOCK). 2) Apply the PR-only noise budget (stage=pr only) to select the non-hard-stop findings considered for <code>max_finding_risk</code>. 3) <code>max_finding_risk = max(risk_score of considered findings; 0 if none)</code>. 4) Compute <code>release_risk = clamp(max_finding_risk + stage_modifier + exposure_modifier + change_modifier + trust_modifier, 0, 100)</code>. 5) Apply the stage decision matrix and escalation logic to derive ALLOW/WARN/BLOCK and exit code. 6) Emit <code>report.json</code> and the ordered <code>decision_trace</code>, including hashes for all decision-affecting inputs and visibility of suppressed findings.</p>
 <h2 id="canonical-deterministic-evaluation-order-authoritative">Canonical Deterministic Evaluation Order (Authoritative)</h2>
-<p>1) Ingest, validate, and hash every decision-affecting input (scanner outputs, context, policy, accepted risks); fatal errors follow the prescribed fail-closed behavior for each stage. 2) Normalize inputs into the Unified Finding Schema and derive stable fingerprints for each finding. 3) Detect hard-stop conditions (see <strong>Hard-Stop Conditions (Authoritative)</strong> below); these findings bypass governance and noise budget steps and always force BLOCK. 4) Apply governance: valid exceptions and Accepted Risks with <code>suppress_from_scoring</code> effects remove findings from the scoring set, while each governance event records the suppressed fingerprints and counts in the trace/report. Expired or invalid accepted risks do not contribute to scoring (although their expiry escalation rules still apply). 5) Score only the remaining scoring set, computing per-finding risk_score and the trust modifiers defined in Section 3. 6) Apply the PR-only noise budget to the scored scoring set (hard-stop findings are excluded by definition); any noise budget configuration targeting main/release/prod is a fatal policy error. 7) Evaluate policy rules in deterministic order, including selectors and tightening actions. 8) Apply the stage matrix plus escalation logic (prod warn_to_block and allow_warn_in_prod coverage). 9) Enforce governance floors such as “Accepted Risk covering HIGH/CRITICAL findings mandates at least WARN.” 10) Emit <code>decision.json</code>, <code>decision_trace</code>, <code>summary.md</code>, and other optional reports, ensuring every suppressed finding remains visible with its <code>suppressed_by_*</code> flags. 11) Optionally generate an LLM explanation artifact using sanitized, non-authoritative inputs derived from the finalized trace.</p>
+<p>1) Ingest, validate, and hash every decision-affecting input (scanner outputs, context, policy, accepted risks); fatal errors follow the prescribed fail-closed behavior for each stage. 2) Normalize inputs into the Unified Finding Schema and derive stable fingerprints for each finding. 3) Detect hard-stop conditions (see <strong>Hard-Stop Conditions (Authoritative)</strong> below); these findings bypass governance and noise budget steps and always force BLOCK. 4) Apply governance: valid exceptions and Accepted Risks with <code>suppress_from_scoring</code> effects remove findings from the scoring set, while each governance event records the suppressed fingerprints and counts in the trace/report. Expired or invalid accepted risks do not contribute to scoring (although their expiry escalation rules still apply). 5) Score only the remaining scoring set, computing per-finding risk_score and the trust modifiers defined in Section 3. 6) Apply the PR-only noise budget to the scored scoring set (hard-stop findings are excluded by definition); any noise budget configuration targeting main/release/prod is a fatal policy error. 7) Evaluate policy rules in deterministic order, including selectors and tightening actions. 8) Apply the stage matrix plus escalation logic (prod warn_to_block and allow_warn_in_prod coverage). 9) Enforce governance floors such as “Accepted Risk covering HIGH/CRITICAL findings mandates at least WARN.” 10) Emit <code>report.json</code>, <code>decision_trace</code>, <code>summary.md</code>, and other optional reports, ensuring every suppressed finding remains visible with its <code>suppressed_by_*</code> flags. 11) Optionally generate an LLM explanation artifact using sanitized, non-authoritative inputs derived from the finalized trace.</p>
 <p>Suppressed findings continue to appear in <code>decision.findings.items</code> with their suppression flags, and every governance event (exception, accepted risk) records the bounded fingerprint list and suppressed count so the audit trail remains complete even though those findings no longer feed into scoring.</p>
 <h2 id="hard-stop-conditions-authoritative">Hard-Stop Conditions (Authoritative)</h2>
 <p>Hard-stop behavior is <strong>condition-based</strong>, not purely domain-based. The engine inspects normalized findings and synthetic conditions, and then marks specific findings as <code>hard_stop=true</code>. Domains are an input into these conditions, but domain alone is insufficient: some domains (for example, PROVENANCE) may emit both hard-stop and non-hard-stop findings depending on the triggering condition.</p>
@@ -844,7 +844,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Accepted risks must be reviewed on expiry; expired items trigger escalation (Section 6).</li>
 </ul>
 <h2 id="9-suppression-and-decision-trace-invariants-authoritative">9) Suppression and Decision Trace Invariants (Authoritative)</h2>
-<p>This section defines the canonical behavior for any mechanism that removes findings from the scoring set (exceptions, accepted risks, PR-only noise budget) and how those actions are reflected in <code>decision.json</code> and <code>decision_trace</code>.</p>
+<p>This section defines the canonical behavior for any mechanism that removes findings from the scoring set (exceptions, accepted risks, PR-only noise budget) and how those actions are reflected in <code>report.json</code> and <code>decision_trace</code>.</p>
 <h3 id="suppression-semantics">Suppression Semantics</h3>
 <ul>
 <li>Suppression is <strong>logical only</strong>: suppressed findings remain present in</li>
@@ -938,8 +938,8 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Expired or revoked accepted risks are <strong>never</strong> treated as active for suppression or</li>
 </ul>
 <p>WARN-coverage decisions; they are reflected only via governance warnings and expiry-based escalation (Section 6).</p>
-<h2 id="10-decisionjson-schema-authoritative">10) decision.json Schema (Authoritative)</h2>
-<p>The engine MUST output decision.json with the following structure:</p>
+<h2 id="10-reportjson-schema-authoritative">10) report.json Schema (Authoritative)</h2>
+<p>The engine MUST output report.json with the following structure:</p>
 <ul>
 <li>schema_version: string</li>
 <li>tool_version: string</li>
@@ -1197,7 +1197,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>F2 remains in the scoring set and contributes to <code>findings.considered_count</code> and <code>scoring.max_finding_risk</code>.</li>
 <li>Because AR-001 actively covers a HIGH-severity finding (F1) in the current stage/environment, the <strong>Precedence Rules</strong> and governance document’s WARN floor require the final decision to be at least WARN even if <code>release_risk</code> computed from F2 alone would otherwise allow ALLOW.</li>
 </ul>
-<p>decision.json highlights:</p>
+<p>report.json highlights:</p>
 <ul>
 <li><code>findings.total_count = 2</code></li>
 <li><code>findings.considered_count = 1</code> (F2 only)</li>
@@ -1238,7 +1238,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Release risk computed from F3 and context exceeds the BLOCK threshold.</li>
 <li>Because an expired accepted risk would have covered a CRITICAL finding at release/prod, expiry escalation forces BLOCK even if other factors (e.g., trust) might have allowed WARN.</li>
 </ul>
-<p>decision.json highlights:</p>
+<p>report.json highlights:</p>
 <ul>
 <li><code>findings.total_count = 1</code>, <code>findings.considered_count = 1</code>.</li>
 <li><code>findings.items[0]</code> shows <code>suppressed_by_accepted_risk=false</code>.</li>
@@ -1274,7 +1274,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>AR-003 covers only <code>fp-high-a</code>. Because not <strong>every</strong> <code>warn_causing_fingerprint</code> is covered by an active accepted risk with <code>allow_warn_in_prod=true</code>, prod WARN→BLOCK escalation remains in effect.</li>
 <li>If the stage decision matrix initially yields WARN, the global prod escalation upgrades the final decision to BLOCK.</li>
 </ul>
-<p>decision.json highlights:</p>
+<p>report.json highlights:</p>
 <ul>
 <li><code>findings.total_count = 2</code>, <code>findings.considered_count = 2</code>.</li>
 <li><code>policy.accepted_risks_applied</code> includes <code>AR-003</code>, and <code>policy.accepted_risks_coverage</code> maps <code>AR-003</code> to <code>fingerprints=[&quot;fp-high-a&quot;]</code> only.</li>
@@ -1297,7 +1297,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li><input type="checkbox" > Escalation logic covers stage changes and accepted risk expiry.</li>
 <li><input type="checkbox" > Noise budget applies only to pr by default and never to hard-stop domains.</li>
 <li><input type="checkbox" > Suppression and decision trace invariants are explicitly defined and referenced by other docs.</li>
-<li><input type="checkbox" > decision.json schema is authoritative and complete.</li>
+<li><input type="checkbox" > report.json schema is authoritative and complete.</li>
 <li><input type="checkbox" > Deterministic recommended_next_steps are enumerated.</li>
 <li><input type="checkbox" > All required example walkthroughs are present and consistent.</li>
 </ul>

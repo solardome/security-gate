@@ -27,7 +27,7 @@ with optional LLM explanation consuming sanitized trace data only.
 - policy applies noise budget, exceptions, accepted risks, and stage decision matrix.
 - decision_trace records ordered trace events and all authoritative inputs.
 - governance (accepted risk) validates time-bound justifications and scope.
-- report renders decision.json, summary.md, and optional HTML.
+- report renders report.json and optional HTML.
 - llm consumes sanitized trace data and produces non-authoritative text only.
 
 ## Data Flow (Authoritative)
@@ -41,11 +41,11 @@ At a high level, data flows from ingest → normalize → score → policy → d
 ## Trust and Provenance Flow
 - Trust signals are gathered from context and scanner metadata (pinned versions,
   freshness, input integrity, artifact signing, provenance level, build context).
-- trust_score is computed deterministically and stored in decision.json.
+- trust_score is computed deterministically and stored in report.json.
 - trust_score directly affects release_risk via the trust modifier and can be used
   in policy rules.
 - Missing or unknown signals reduce trust_score and tighten gating.
-- All decision-affecting inputs (scanner outputs, context input, policy file, accepted risk file) are hashed and recorded in both decision.json and the decision_trace so the architecture produces a fully audit-ready snapshot of every influence on the decision.
+- All decision-affecting inputs (scanner outputs, context input, policy file, accepted risk file) are hashed and recorded in both report.json and the decision_trace so the architecture produces a fully audit-ready snapshot of every influence on the decision.
 - Provenance and signing are enforced in two layers: explicit synthetic findings in `domain=PROVENANCE` that hard-stop BLOCK when deterministic requirements fail, and trust penalties that only adjust `trust_score`.
   - Synthetic provenance hard stops cover `PROVENANCE_INVALID_SIGNATURE`, `PROVENANCE_MISMATCH`, `PROVENANCE_UNSIGNED_ARTIFACT`, and `PROVENANCE_INSUFFICIENT_LEVEL`, are normalized before scoring, and bypass governance suppressions and noise budget.
   - Trust penalties only apply when the policy does not require the evidence (e.g., unsigned/unknown signatures or provenance_level=unknown without a minimum requirement).

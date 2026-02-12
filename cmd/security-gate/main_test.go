@@ -192,8 +192,8 @@ func TestReportWriteAffectedInput(t *testing.T) {
 	if got := reportWriteAffectedInput(withErrorCode("OUTPUT_DIR_CREATE_FAILED", errors.New("x"))); got != "output_dir" {
 		t.Fatalf("expected output_dir, got %q", got)
 	}
-	if got := reportWriteAffectedInput(withErrorCode("DECISION_WRITE_FAILED", errors.New("x"))); got != "decision.json" {
-		t.Fatalf("expected decision.json, got %q", got)
+	if got := reportWriteAffectedInput(withErrorCode("REPORT_JSON_WRITE_FAILED", errors.New("x"))); got != "report.json" {
+		t.Fatalf("expected report.json, got %q", got)
 	}
 	if got := reportWriteAffectedInput(withErrorCode("HTML_WRITE_FAILED", errors.New("x"))); got != "report.html" {
 		t.Fatalf("expected report.html, got %q", got)
@@ -401,11 +401,11 @@ func TestWriteReportsAndFatalBuilders(t *testing.T) {
 		GeneratedAt:      now.Format(time.RFC3339),
 		DecisionArtifact: artifact,
 	}
-	decisionPath, htmlPath, checksumsPath, err := writeReports(now, tmp, report, artifact, []string{"input/a.json"}, true)
+	reportPath, htmlPath, checksumsPath, err := writeReports(now, tmp, report, artifact, []string{"input/a.json"}, true)
 	if err != nil {
 		t.Fatalf("writeReports failed: %v", err)
 	}
-	for _, p := range []string{decisionPath, htmlPath, checksumsPath} {
+	for _, p := range []string{reportPath, htmlPath, checksumsPath} {
 		if _, err := os.Stat(p); err != nil {
 			t.Fatalf("expected file %s: %v", p, err)
 		}
@@ -414,7 +414,7 @@ func TestWriteReportsAndFatalBuilders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read checksums: %v", err)
 	}
-	if !strings.Contains(string(content), "decision.json") || !strings.Contains(string(content), "report.html") {
+	if !strings.Contains(string(content), "report.json") || !strings.Contains(string(content), "report.html") {
 		t.Fatalf("checksums file missing expected entries: %s", string(content))
 	}
 

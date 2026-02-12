@@ -363,7 +363,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>Clear boundary between deterministic logic and optional LLM explanation.</li>
 </ul>
 <h2 id="high-level-diagram">High-Level Diagram</h2>
-<div class="pipeline-diagram" aria-label="Security-gate pipeline flow"><div class="pipeline-main"><div class="pipeline-step"><div class="pipeline-step-title">Input Collection</div><div class="pipeline-step-sub">Trivy JSON, stdin, context.json, policy, accepted risk file</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Ingest</div><div class="pipeline-step-sub">ingest/trivy parses scanner payloads and captures metadata</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Normalize</div><div class="pipeline-step-sub">Map to unified finding schema</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Score</div><div class="pipeline-step-sub">Compute risk_score and trust_score with provenance/trust signals</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Policy</div><div class="pipeline-step-sub">Apply noise budget, exceptions, accepted risk, and stage matrix</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Decision Trace</div><div class="pipeline-step-sub">Ordered auditable decision events</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Report</div><div class="pipeline-step-sub">Write decision.json and summary.md</div></div></div><div class="pipeline-branch-wrap"><div class="pipeline-branch"><div class="pipeline-branch-label"><span class="pipeline-branch-arrow">↓</span>Side branch from Decision Trace</div><div class="pipeline-step"><div class="pipeline-step-title">LLM Explanation (Optional)</div><div class="pipeline-step-sub">Consumes sanitized trace and returns non-authoritative text only</div></div></div><div class="pipeline-note">Deterministic boundary: LLM output never changes scoring, policy, or final decision.</div></div></div>
+<div class="pipeline-diagram" aria-label="Security-gate pipeline flow"><div class="pipeline-main"><div class="pipeline-step"><div class="pipeline-step-title">Input Collection</div><div class="pipeline-step-sub">Trivy JSON, stdin, context.json, policy, accepted risk file</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Ingest</div><div class="pipeline-step-sub">ingest/trivy parses scanner payloads and captures metadata</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Normalize</div><div class="pipeline-step-sub">Map to unified finding schema</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Score</div><div class="pipeline-step-sub">Compute risk_score and trust_score with provenance/trust signals</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Policy</div><div class="pipeline-step-sub">Apply noise budget, exceptions, accepted risk, and stage matrix</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Decision Trace</div><div class="pipeline-step-sub">Ordered auditable decision events</div></div><div class="pipeline-arrow">→</div><div class="pipeline-step"><div class="pipeline-step-title">Report</div><div class="pipeline-step-sub">Write report.json and summary.md</div></div></div><div class="pipeline-branch-wrap"><div class="pipeline-branch"><div class="pipeline-branch-label"><span class="pipeline-branch-arrow">↓</span>Side branch from Decision Trace</div><div class="pipeline-step"><div class="pipeline-step-title">LLM Explanation (Optional)</div><div class="pipeline-step-sub">Consumes sanitized trace and returns non-authoritative text only</div></div></div><div class="pipeline-note">Deterministic boundary: LLM output never changes scoring, policy, or final decision.</div></div></div>
 <h2 id="module-boundaries">Module Boundaries</h2>
 <ul>
 <li>cmd/security-gate orchestrates the pipeline and owns exit code behavior.</li>
@@ -373,7 +373,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>policy applies noise budget, exceptions, accepted risks, and stage decision matrix.</li>
 <li>decision_trace records ordered trace events and all authoritative inputs.</li>
 <li>governance (accepted risk) validates time-bound justifications and scope.</li>
-<li>report renders decision.json, summary.md, and optional HTML.</li>
+<li>report renders report.json, summary.md, and optional HTML.</li>
 <li>llm consumes sanitized trace data and produces non-authoritative text only.</li>
 </ul>
 <h2 id="data-flow-authoritative">Data Flow (Authoritative)</h2>
@@ -390,13 +390,13 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <p>freshness, input integrity, artifact signing, provenance level, build context).</p>
 <ul>
-<li>trust_score is computed deterministically and stored in decision.json.</li>
+<li>trust_score is computed deterministically and stored in report.json.</li>
 <li>trust_score directly affects release_risk via the trust modifier and can be used</li>
 </ul>
 <p>in policy rules.</p>
 <ul>
 <li>Missing or unknown signals reduce trust_score and tighten gating.</li>
-<li>All decision-affecting inputs (scanner outputs, context input, policy file, accepted risk file) are hashed and recorded in both decision.json and the decision_trace so the architecture produces a fully audit-ready snapshot of every influence on the decision.</li>
+<li>All decision-affecting inputs (scanner outputs, context input, policy file, accepted risk file) are hashed and recorded in both report.json and the decision_trace so the architecture produces a fully audit-ready snapshot of every influence on the decision.</li>
 <li>Provenance and signing are enforced in two layers: explicit synthetic findings in <code>domain=PROVENANCE</code> that hard-stop BLOCK when deterministic requirements fail, and trust penalties that only adjust <code>trust_score</code>.</li>
 <ul>
 <li>Synthetic provenance hard stops cover <code>PROVENANCE_INVALID_SIGNATURE</code>, <code>PROVENANCE_MISMATCH</code>, <code>PROVENANCE_UNSIGNED_ARTIFACT</code>, and <code>PROVENANCE_INSUFFICIENT_LEVEL</code>, are normalized before scoring, and bypass governance suppressions and noise budget.</li>

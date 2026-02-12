@@ -42,7 +42,7 @@ type ScanMetadata struct {
 	ScanTimestamp string
 }
 
-// DecisionArtifact holds the resulting decision.json material.
+// DecisionArtifact holds the resulting report.json material.
 type DecisionArtifact struct {
 	Inputs           DecisionInputs   `json:"inputs"`
 	Trust            TrustResult      `json:"trust"`
@@ -143,7 +143,7 @@ type PolicyEvaluation struct {
 	PolicyVersion          string              `json:"policy_version"`
 }
 
-// DecisionTraceEvent mirrors the trace array in decision.json.
+// DecisionTraceEvent mirrors the trace array in report.json.
 type DecisionTraceEvent struct {
 	EventID   string         `json:"event_id"`
 	Timestamp time.Time      `json:"timestamp"`

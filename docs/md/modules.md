@@ -15,7 +15,7 @@ Fatal errors are deterministic pipeline failures that make the decision non-auth
 - accepted risk parse/validation failure
 
 Fail-closed defaults:
-- stage=main/release/prod: fatal error => BLOCK and emit minimal decision.json with error metadata.
+- stage=main/release/prod: fatal error => BLOCK and emit minimal report.json with error metadata.
 - stage=pr: fatal error => WARN (exit_code=1) with low-trust defaults ONLY if scanner input is present and hashable; otherwise BLOCK.
 
 All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.
@@ -26,7 +26,7 @@ Purpose:
 
 Inputs and Outputs:
 - Inputs: scanner outputs (file paths or stdin), context.json, policy file, accepted risk file.
-- Outputs: decision.json, summary.md, optional HTML report, process exit code.
+- Outputs: report.json, optional HTML report, process exit code.
 
 Public Interfaces:
 - CLI flags (minimal):
@@ -45,7 +45,7 @@ Stage precedence and recording:
   - If `--stage` is provided, it is authoritative and overrides any
     `context.payload.pipeline_stage` value.
   - If `--stage` is not provided, `context.payload.pipeline_stage` is used.
-- `decision.json.inputs.context.payload.pipeline_stage` MUST reflect the **effective**
+- `report.json.inputs.context.payload.pipeline_stage` MUST reflect the **effective**
   stage used for evaluation. If a conflicting stage was present in the original context
   payload and overridden by `--stage`, the engine MUST record this in `decision_trace`
   (for example, via a `context.stage_override` event with both values) so audits can
@@ -57,7 +57,7 @@ Error Handling:
 
 Logging and Traceability:
 - Emits a summary of key inputs and outputs.
-- Ensures decision_trace is persisted as part of decision.json.
+- Ensures decision_trace is persisted as part of report.json.
 - Records SHA-256 hashes for every decision-affecting input (scanner outputs, context, policy, and accepted risk files) so the trace ties each decision to the exact file contents.
 
 Security Considerations:
@@ -163,7 +163,7 @@ Purpose:
 
 Inputs and Outputs:
 - Inputs: module events, hashes, normalized findings, scoring details.
-- Outputs: decision_trace array embedded in decision.json (and optional standalone file).
+- Outputs: decision_trace array embedded in report.json (and optional standalone file).
 
 Public Interfaces:
 - Provides a canonical trace structure for reporting and LLM explanation.
@@ -213,17 +213,17 @@ Security Considerations:
 
 ## report
 Purpose:
-- Generate decision.json, summary.md, and optional HTML report.
+- Generate report.json and optional HTML report.
 
 Inputs and Outputs:
 - Inputs: decision object, findings summary, decision_trace.
 - Outputs: files written to output directory.
 
 Public Interfaces:
-- Emits decision.json with the authoritative schema and summary.md for humans.
+- Emits report.json with the authoritative schema; HTML is optional for humans.
 
 Error Handling:
-- Schema validation failure for decision.json is a fatal error.
+- Schema validation failure for report.json is a fatal error.
 
 Logging and Traceability:
 - Report files include references to input hashes and policy version.
@@ -237,7 +237,7 @@ Purpose:
 
 Inputs and Outputs:
 - Inputs: sanitized decision_trace, deterministic recommended_next_steps.
-- Outputs: explanation text and content_ref in decision.json.
+- Outputs: explanation text and content_ref in report.json.
 
 Public Interfaces:
 - Enabled by CLI flag; uses local LLM only (e.g., Ollama).

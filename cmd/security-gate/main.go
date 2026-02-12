@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -37,6 +38,8 @@ const (
 	defaultReportsDir        = "reports"
 	defaultLogsDir           = "logs"
 )
+
+var cveIDPattern = regexp.MustCompile(`(?i)^CVE-[0-9]{4}-[0-9]{4,}$`)
 
 type contextPayload struct {
 	PipelineStage         string `json:"pipeline_stage"`
@@ -276,13 +279,13 @@ func main() {
 		DecisionArtifact: artifact,
 	}
 
-	decisionPath, htmlPath, checksumsPath, err := writeReports(now, resolvedOutputDir, report, artifact, ingestPaths, cfg.reportHTML)
+	reportPath, htmlPath, checksumsPath, err := writeReports(now, resolvedOutputDir, report, artifact, ingestPaths, cfg.reportHTML)
 	if err != nil {
 		fatalState.fail("REPORT_WRITE_FAILED", reportWriteAffectedInput(err), err)
 	}
-	logger.info("report.generated", "decision", artifact.Decision.Status, "exit_code", artifact.Decision.ExitCode, "decision_json", decisionPath, "html", htmlPath, "checksums", checksumsPath)
+	logger.info("report.generated", "decision", artifact.Decision.Status, "exit_code", artifact.Decision.ExitCode, "report_json", reportPath, "html", htmlPath, "checksums", checksumsPath)
 
-	fmt.Printf("Report generated.\n- Decision JSON: %s\n- Checksums: %s\n", decisionPath, checksumsPath)
+	fmt.Printf("Report generated.\n- Report JSON: %s\n- Checksums: %s\n", reportPath, checksumsPath)
 	if htmlPath != "" {
 		fmt.Printf("- HTML: %s\n", htmlPath)
 	}
@@ -354,8 +357,8 @@ func reportWriteAffectedInput(err error) string {
 	switch resolveFatalCode("", err) {
 	case "OUTPUT_DIR_CREATE_FAILED":
 		return "output_dir"
-	case "DECISION_WRITE_FAILED":
-		return "decision.json"
+	case "REPORT_JSON_WRITE_FAILED":
+		return "report.json"
 	case "HTML_WRITE_FAILED":
 		return "report.html"
 	case "CHECKSUMS_WRITE_FAILED":
@@ -461,9 +464,9 @@ func writeReports(now time.Time, outputDir string, report decisionReport, artifa
 		return "", "", "", withErrorCode("OUTPUT_DIR_CREATE_FAILED", err)
 	}
 
-	decisionPath := filepath.Join(outputDir, "decision.json")
-	if err := writeJSON(decisionPath, report); err != nil {
-		return "", "", "", withErrorCode("DECISION_WRITE_FAILED", err)
+	reportPath := filepath.Join(outputDir, "report.json")
+	if err := writeJSON(reportPath, report); err != nil {
+		return "", "", "", withErrorCode("REPORT_JSON_WRITE_FAILED", err)
 	}
 
 	htmlPath := ""
@@ -474,12 +477,12 @@ func writeReports(now time.Time, outputDir string, report decisionReport, artifa
 		}
 	}
 
-	checksumsPath, err := writeReportChecksums(outputDir, decisionPath, htmlPath)
+	checksumsPath, err := writeReportChecksums(outputDir, reportPath, htmlPath)
 	if err != nil {
 		return "", "", "", withErrorCode("CHECKSUMS_WRITE_FAILED", err)
 	}
 
-	return decisionPath, htmlPath, checksumsPath, nil
+	return reportPath, htmlPath, checksumsPath, nil
 }
 
 func firstScanTimestamp(findings []trivy.CanonicalFinding, fallback time.Time) time.Time {
@@ -554,9 +557,9 @@ func fatalExit(now time.Time, outputDir string, stage policy.Stage, scannerHasha
 	}
 
 	if err := os.MkdirAll(snapshot.outputDir, 0o755); err == nil {
-		decisionPath := filepath.Join(snapshot.outputDir, "decision.json")
-		if writeErr := writeJSON(decisionPath, report); writeErr == nil {
-			fmt.Fprintf(os.Stderr, "fatal error artifact written: %s\n", decisionPath)
+		reportPath := filepath.Join(snapshot.outputDir, "report.json")
+		if writeErr := writeJSON(reportPath, report); writeErr == nil {
+			fmt.Fprintf(os.Stderr, "fatal error artifact written: %s\n", reportPath)
 		}
 	}
 
@@ -743,13 +746,13 @@ func fileSHA256(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-func writeReportChecksums(outputDir, decisionPath, htmlPath string) (string, error) {
+func writeReportChecksums(outputDir, reportPath, htmlPath string) (string, error) {
 	type entry struct {
 		name string
 		path string
 	}
 	entries := []entry{
-		{name: "decision.json", path: decisionPath},
+		{name: "report.json", path: reportPath},
 	}
 	if strings.TrimSpace(htmlPath) != "" {
 		entries = append(entries, entry{name: "report.html", path: htmlPath})
@@ -774,6 +777,208 @@ func writeReportChecksums(outputDir, decisionPath, htmlPath string) (string, err
 	return path, nil
 }
 
+type remediationItem struct {
+	FindingID   string
+	Fingerprint string
+	Domain      string
+	Severity    string
+	RiskScore   int
+	Location    string
+	FixVersion  string
+	Reason      string
+}
+
+type remediationPlan struct {
+	Title string
+	Goal  string
+	Notes []string
+	Items []remediationItem
+}
+
+func writeMarkdownReport(path string, artifact policy.DecisionArtifact, inputPaths []string) error {
+	plan := buildRemediationPlan(artifact)
+	acceptedRiskByFingerprint := buildAcceptedRiskIndex(artifact.Policy.AcceptedRisksCoverage)
+	required := make(map[string]bool, len(plan.Items))
+	for _, item := range plan.Items {
+		required[item.Fingerprint] = true
+	}
+
+	var b strings.Builder
+	b.WriteString("# security-gate report\n\n")
+	b.WriteString(fmt.Sprintf("- Decision: **%s**\n", artifact.Decision.Status))
+	b.WriteString(fmt.Sprintf("- Stage: `%s`\n", firstNonEmpty(artifact.Inputs.Context.Payload.PipelineStage, "unknown")))
+	b.WriteString(fmt.Sprintf("- Policy version: `%s`\n", policyVersionForReport(artifact.Policy.PolicyVersion)))
+	b.WriteString(fmt.Sprintf("- Accepted risks used: `%s`\n", acceptedRisksUsedForReport(artifact.Policy.AcceptedRisksApplied)))
+	b.WriteString(fmt.Sprintf("- Release risk: `%d`\n", artifact.Scoring.ReleaseRisk))
+	b.WriteString(fmt.Sprintf("- Trust score: `%d`\n", artifact.Trust.TrustScore))
+	b.WriteString(fmt.Sprintf("- Findings: total=%d, hard-stop=%d, considered=%d\n", artifact.Findings.TotalCount, artifact.Findings.HardStopCount, artifact.Findings.ConsideredCount))
+	b.WriteString(fmt.Sprintf("- Inputs: `%s`\n\n", strings.Join(inputPaths, ", ")))
+
+	if plan.Title != "" {
+		b.WriteString("## Priority Actions\n\n")
+		b.WriteString(fmt.Sprintf("- %s\n", plan.Title))
+		b.WriteString(fmt.Sprintf("- Goal: %s\n", plan.Goal))
+		for _, note := range plan.Notes {
+			b.WriteString(fmt.Sprintf("- Note: %s\n", note))
+		}
+		if len(plan.Items) == 0 {
+			b.WriteString("- No finding-level actions identified.\n\n")
+		} else {
+			b.WriteString("\n| priority | finding_id | severity | risk_score | location | fix_version | reason |\n")
+			b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
+			for i, item := range plan.Items {
+				b.WriteString(fmt.Sprintf("| %d | `%s` | %s | %d | `%s` | `%s` | %s |\n",
+					i+1,
+					escapeMDPipe(item.FindingID),
+					escapeMDPipe(item.Severity),
+					item.RiskScore,
+					escapeMDPipe(firstNonEmpty(item.Location, "n/a")),
+					escapeMDPipe(firstNonEmpty(item.FixVersion, "n/a")),
+					escapeMDPipe(item.Reason),
+				))
+			}
+			b.WriteByte('\n')
+		}
+	}
+
+	b.WriteString("## Issue Triage\n\n")
+	b.WriteString("| finding_id | domain | severity | risk_score | status | priority_action |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
+	for _, finding := range artifact.Findings.Items {
+		priority := "no"
+		if required[finding.Finding.Fingerprint] {
+			priority = "yes"
+		}
+		b.WriteString(fmt.Sprintf("| `%s` | %s | %s | %d | %s | %s |\n",
+			escapeMDPipe(finding.Finding.FindingID),
+			escapeMDPipe(finding.Finding.Domain),
+			escapeMDPipe(finding.Finding.Severity),
+			finding.RiskScore,
+			escapeMDPipe(issueStatus(finding)),
+			priority,
+		))
+	}
+	b.WriteByte('\n')
+
+	b.WriteString("## Issue Details\n\n")
+	for _, finding := range artifact.Findings.Items {
+		b.WriteString(fmt.Sprintf("### %s\n\n", finding.Finding.FindingID))
+		b.WriteString(fmt.Sprintf("- Status: `%s`\n", issueStatus(finding)))
+		b.WriteString(fmt.Sprintf("- Status explanation: %s\n", issueStatusHint(finding, acceptedRiskByFingerprint)))
+		b.WriteString(fmt.Sprintf("- Domain / Severity: `%s / %s`\n", finding.Finding.Domain, finding.Finding.Severity))
+		b.WriteString(fmt.Sprintf("- Risk score: `%d`\n", finding.RiskScore))
+		b.WriteString(fmt.Sprintf("- Location: `%s`\n", firstNonEmpty(finding.Finding.Location.Path, finding.Finding.Location.Target, finding.Finding.Location.File, "n/a")))
+		b.WriteString(fmt.Sprintf("- Package: `%s`\n", firstNonEmpty(finding.Finding.Location.Package, "n/a")))
+		b.WriteString(fmt.Sprintf("- CVE: `%s`\n", firstNonEmpty(finding.Finding.CVE, "n/a")))
+		b.WriteString(fmt.Sprintf("- CVSS v3: `%s`\n", cvssForReport(finding.Finding.CVSSv3)))
+		b.WriteString(fmt.Sprintf("- Fix available: `%s`\n", firstNonEmpty(finding.Finding.FixAvailable, "unknown")))
+		b.WriteString(fmt.Sprintf("- Fix version: `%s`\n", firstNonEmpty(finding.Finding.FixVersion, "n/a")))
+		b.WriteString(fmt.Sprintf("- Remediation hint: `%s`\n", firstNonEmpty(finding.Finding.RemediationHint, "n/a")))
+		b.WriteString(fmt.Sprintf("- Evidence ref: `%s`\n", firstNonEmpty(finding.Finding.EvidenceRef, "n/a")))
+		b.WriteString(fmt.Sprintf("- Fingerprint: `%s`\n\n", firstNonEmpty(finding.Finding.Fingerprint, "n/a")))
+	}
+
+	return os.WriteFile(path, []byte(b.String()), 0o644)
+}
+
+func buildRemediationPlan(artifact policy.DecisionArtifact) remediationPlan {
+	stage := strings.ToLower(strings.TrimSpace(artifact.Inputs.Context.Payload.PipelineStage))
+	allowRiskMax, warnRiskMax, allowTrustMin, warnTrustMin := stageThresholds(stage)
+	considered := make([]scoring.ScoredFinding, 0, len(artifact.Findings.Items))
+	for _, finding := range artifact.Findings.Items {
+		if finding.SuppressedByAcceptedRisk || finding.SuppressedByException || finding.SuppressedByNoiseBudget {
+			continue
+		}
+		considered = append(considered, finding)
+	}
+	sort.SliceStable(considered, func(i, j int) bool {
+		if considered[i].HardStop != considered[j].HardStop {
+			return considered[i].HardStop
+		}
+		if considered[i].RiskScore != considered[j].RiskScore {
+			return considered[i].RiskScore > considered[j].RiskScore
+		}
+		return considered[i].Finding.FindingID < considered[j].Finding.FindingID
+	})
+
+	plan := remediationPlan{}
+	switch artifact.Decision.Status {
+	case domain.DecisionBlock:
+		plan.Title = "Fix these findings first to remove BLOCK."
+		plan.Goal = "Reach WARN or ALLOW."
+		if artifact.Trust.TrustScore < warnTrustMin {
+			plan.Notes = append(plan.Notes, fmt.Sprintf("Trust score %d is below stage minimum %d for non-BLOCK outcome; improve trust signals too.", artifact.Trust.TrustScore, warnTrustMin))
+		}
+		plan.Items = requiredFindingsForTarget(considered, warnRiskMax-artifact.Scoring.Modifiers.StageModifier-artifact.Scoring.Modifiers.ExposureModifier-artifact.Scoring.Modifiers.ChangeModifier-artifact.Scoring.Modifiers.TrustModifier)
+	case domain.DecisionWarn:
+		plan.Title = "Fix these findings first to move WARN -> ALLOW."
+		plan.Goal = "Reach ALLOW."
+		if artifact.Trust.TrustScore < allowTrustMin {
+			plan.Notes = append(plan.Notes, fmt.Sprintf("Trust score %d is below stage ALLOW threshold %d; improve trust signals too.", artifact.Trust.TrustScore, allowTrustMin))
+		}
+		plan.Items = requiredFindingsForTarget(considered, allowRiskMax-artifact.Scoring.Modifiers.StageModifier-artifact.Scoring.Modifiers.ExposureModifier-artifact.Scoring.Modifiers.ChangeModifier-artifact.Scoring.Modifiers.TrustModifier)
+	default:
+		plan.Title = "Current state is ALLOW."
+		plan.Goal = "No mandatory finding-level remediation to unblock."
+	}
+	return plan
+}
+
+func requiredFindingsForTarget(considered []scoring.ScoredFinding, maxFindingRiskTarget int) []remediationItem {
+	items := make([]remediationItem, 0)
+	if len(considered) == 0 {
+		return items
+	}
+	if maxFindingRiskTarget < 0 {
+		maxFindingRiskTarget = 0
+	}
+	for _, finding := range considered {
+		if finding.HardStop {
+			items = append(items, remediationItem{
+				FindingID:   finding.Finding.FindingID,
+				Fingerprint: finding.Finding.Fingerprint,
+				Domain:      finding.Finding.Domain,
+				Severity:    finding.Finding.Severity,
+				RiskScore:   finding.RiskScore,
+				Location:    firstNonEmpty(finding.Finding.Location.Path, finding.Finding.Location.Target, finding.Finding.Location.File, "n/a"),
+				FixVersion:  firstNonEmpty(finding.Finding.FixVersion, "n/a"),
+				Reason:      "Hard-stop finding always blocks release.",
+			})
+			continue
+		}
+		if finding.RiskScore > maxFindingRiskTarget {
+			items = append(items, remediationItem{
+				FindingID:   finding.Finding.FindingID,
+				Fingerprint: finding.Finding.Fingerprint,
+				Domain:      finding.Finding.Domain,
+				Severity:    finding.Finding.Severity,
+				RiskScore:   finding.RiskScore,
+				Location:    firstNonEmpty(finding.Finding.Location.Path, finding.Finding.Location.Target, finding.Finding.Location.File, "n/a"),
+				FixVersion:  firstNonEmpty(finding.Finding.FixVersion, "n/a"),
+				Reason:      fmt.Sprintf("Risk score %d is above required max %d.", finding.RiskScore, maxFindingRiskTarget),
+			})
+		}
+	}
+	return items
+}
+
+func stageThresholds(stage string) (allowRiskMax, warnRiskMax, allowTrustMin, warnTrustMin int) {
+	switch stage {
+	case "main":
+		return 35, 60, 30, 20
+	case "release":
+		return 30, 50, 40, 30
+	case "prod":
+		return 25, 40, 50, 40
+	default:
+		return 45, 70, 20, 10
+	}
+}
+
+func escapeMDPipe(s string) string {
+	return strings.ReplaceAll(strings.TrimSpace(s), "|", "\\|")
+}
+
 func issueStatus(f scoring.ScoredFinding) string {
 	switch {
 	case f.HardStop:
@@ -783,6 +988,50 @@ func issueStatus(f scoring.ScoredFinding) string {
 	default:
 		return "CONSIDERED"
 	}
+}
+
+func buildAcceptedRiskIndex(coverage map[string][]string) map[string][]string {
+	index := make(map[string][]string)
+	for riskID, fingerprints := range coverage {
+		for _, fp := range fingerprints {
+			index[fp] = append(index[fp], riskID)
+		}
+	}
+	for fp := range index {
+		sort.Strings(index[fp])
+	}
+	return index
+}
+
+func issueStatusHint(f scoring.ScoredFinding, acceptedRiskByFingerprint map[string][]string) string {
+	if f.HardStop {
+		if strings.TrimSpace(f.HardStopReason) != "" {
+			return "Hard-stop finding that forces BLOCK. Reason: " + f.HardStopReason + "."
+		}
+		return "Hard-stop finding that forces BLOCK."
+	}
+	if f.SuppressedByAcceptedRisk || f.SuppressedByException || f.SuppressedByNoiseBudget {
+		reasons := make([]string, 0, 3)
+		if f.SuppressedByAcceptedRisk {
+			ids := acceptedRiskByFingerprint[f.Finding.Fingerprint]
+			if len(ids) > 0 {
+				reasons = append(reasons, "Suppressed by accepted risk: "+strings.Join(ids, ", ")+".")
+			} else {
+				reasons = append(reasons, "Suppressed by accepted risk.")
+			}
+		}
+		if f.SuppressedByException {
+			reasons = append(reasons, "Suppressed by policy exception.")
+		}
+		if f.SuppressedByNoiseBudget {
+			reasons = append(reasons, "Suppressed by PR noise budget.")
+		}
+		if len(reasons) == 0 {
+			reasons = append(reasons, "Suppressed by policy controls.")
+		}
+		return strings.Join(reasons, " ")
+	}
+	return "Included in scoring and final decision."
 }
 
 type cliConfig struct {
@@ -960,7 +1209,10 @@ func buildTrustContext(ctx contextPayload, scanMetadata map[string]policy.ScanMe
 }
 
 func writeHTMLReport(path string, artifact policy.DecisionArtifact, inputPaths []string) error {
-	tmpl := template.Must(template.New("report").Parse(`<!doctype html>
+	plan := buildRemediationPlan(artifact)
+	tmpl := template.Must(template.New("report").Funcs(template.FuncMap{
+		"inc": func(i int) int { return i + 1 },
+	}).Parse(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1001,8 +1253,8 @@ body::before {
     var(--bg);
 }
 .layout {
-  width: min(1100px, calc(100vw - 2.4rem));
-  margin: 1.2rem auto 2rem;
+  width: calc(100vw - 1.2rem);
+  margin: 0.6rem auto 1.2rem;
 }
 .site-header {
   padding: 0.85rem 1.2rem;
@@ -1085,6 +1337,22 @@ th, td {
   word-break: break-word;
 }
 tr:nth-child(even) td { background: #26170f; }
+.triage-row { cursor: pointer; }
+.triage-row:hover td { background: #322015; }
+.triage-row:focus-visible {
+  outline: 2px solid #ffb250;
+  outline-offset: 2px;
+}
+.triage-detail td {
+  background: #20130d !important;
+  padding: 0.7rem;
+}
+.inline-details {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #25170f;
+  padding: 0.65rem 0.75rem;
+}
 code {
   display: inline-block;
   max-width: 100%;
@@ -1102,12 +1370,94 @@ code {
   font-size: 0.82rem;
   font-weight: 700;
 }
+.severity {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.08rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: inline-block;
+}
+.severity-critical { color: #ff9e9e; background: #36191b; border-color: #7b3a3f; }
+.severity-high { color: #ffd39e; background: #342313; border-color: #7e5a2f; }
+.severity-medium { color: #efe19f; background: #332c14; border-color: #70633a; }
+.severity-low { color: #b9d6f5; background: #1d2733; border-color: #3f5872; }
+.severity-unknown { color: #c7cdd4; background: #242a31; border-color: #46515e; }
 .status-considered { color: #9fb3c8; background: #1e2630; border-color: #3a4d63; }
 .status-suppressed { color: #c9b27a; background: #2f2818; border-color: #6f5c30; }
 .status-block { color: var(--block); background: #3a1818; border-color: #7c2d2d; }
+.section-note {
+  color: var(--muted);
+  margin: 0.3rem 0 0.6rem;
+  font-size: 0.9rem;
+}
+.finding-list {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+.finding-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #25170f;
+  overflow: hidden;
+}
+.finding-card summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+}
+.finding-card summary::-webkit-details-marker { display: none; }
+.finding-title {
+  font-weight: 700;
+  margin-right: 0.35rem;
+}
+.finding-meta {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.finding-body {
+  border-top: 1px solid var(--line);
+  padding: 0.75rem 0.9rem 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.9rem;
+}
+.kv { min-width: 0; }
+.kv-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-bottom: 0.1rem;
+}
+.kv-value {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: block;
+  width: 100%;
+  border: 1px solid #8b532b;
+  border-radius: 8px;
+  background: #301b10;
+  box-shadow: inset 0 0 0 1px rgba(255, 170, 90, 0.08);
+  padding: 0.34rem 0.5rem;
+}
+.kv-value code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.kv-value a {
+  color: #ffd28a;
+  text-decoration: underline;
+  text-decoration-color: #8b532b;
+}
 @media (max-width: 920px) {
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   th, td { font-size: 0.88rem; }
+  .finding-body { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -1150,106 +1500,291 @@ code {
       <div class="stat" title="Findings currently counted in decision/scoring after suppressions."><div class="label">Considered</div><div class="value">{{.Considered}}</div></div>
     </div>
 
-    <h2>Issue Statuses</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th title="Stable finding identifier from scanner or normalizer.">finding_id</th>
-            <th title="Deterministic hash used for tracking and accepted-risk matching.">fingerprint</th>
-            <th title="Finding domain used by policy logic (for example SECRET, VULNERABILITY, CONFIG).">domain</th>
-            <th title="Normalized severity level reported for this finding.">severity</th>
-            <th title="Calculated risk score for this finding after deterministic scoring.">risk_score</th>
-            <th title="Evaluation outcome for this finding in the current run.">status</th>
-            <th title="Short explanation of why this status was assigned.">explanation</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Issues}}
-          <tr>
-            <td><code>{{.FindingID}}</code></td>
-            <td><code>{{.Fingerprint}}</code></td>
-            <td>{{.Domain}}</td>
-            <td>{{.Severity}}</td>
-            <td>{{.RiskScore}}</td>
-            <td><span class="status {{.StatusClass}}" title="{{.StatusHint}}">{{.Status}}</span></td>
-            <td>{{.StatusHint}}</td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
+	    <h2>Issue Triage</h2>
+	    <p class="section-note">Open any row to expand technical details inline.</p>
+
+	    <h3>Fix Now</h3>
+	    <p class="section-note">Actionable findings that directly block moving to a better final decision.</p>
+	    <div class="table-wrap">
+	      <table>
+	        <thead>
+	          <tr>
+	            <th title="Simple finding row index.">#</th>
+	            <th title="Stable finding identifier from scanner or normalizer.">finding_id</th>
+	            <th title="Finding domain used by policy logic (for example SECRET, VULNERABILITY, CONFIG).">domain</th>
+	            <th title="Normalized severity level reported for this finding.">severity</th>
+	            <th title="Calculated risk score for this finding after deterministic scoring.">risk_score</th>
+	          </tr>
+	        </thead>
+	        <tbody>
+	          {{if .MustFixIssues}}
+	          {{range $i, $issue := .MustFixIssues}}
+	          <tr class="triage-main" data-detail-id="{{$issue.AnchorID}}-detail">
+	            <td>{{inc $i}}</td>
+	            <td><code>{{$issue.FindingID}}</code></td>
+	            <td>{{$issue.Domain}}</td>
+	            <td><span class="severity {{$issue.SeverityClass}}">{{$issue.Severity}}</span></td>
+	            <td>{{$issue.RiskScore}}</td>
+	          </tr>
+	          <tr id="{{$issue.AnchorID}}-detail" class="triage-detail" hidden>
+	            <td colspan="5">
+	              <div class="inline-details">
+	                <div class="finding-meta"><span class="status {{$issue.StatusClass}}">{{$issue.Status}}</span> / <span class="severity {{$issue.SeverityClass}}">{{$issue.Severity}}</span> / risk={{$issue.RiskScore}}</div>
+	                <div class="finding-body">
+	                  <div class="kv"><div class="kv-label">Status explanation</div><div class="kv-value"><code>{{$issue.StatusHint}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Title</div><div class="kv-value"><code>{{$issue.Title}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Description</div><div class="kv-value"><code>{{$issue.Description}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Location</div><div class="kv-value"><code>{{$issue.Location}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Package</div><div class="kv-value"><code>{{$issue.PackageName}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">CVE</div><div class="kv-value"><code>{{$issue.CVEID}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">CVSS v3</div><div class="kv-value"><code>{{$issue.CVSSv3}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fix available</div><div class="kv-value"><code>{{$issue.FixAvailable}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fix version</div><div class="kv-value"><code>{{$issue.FixVersion}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Remediation hint</div><div class="kv-value">{{if $issue.RemediationURL}}<a href="{{$issue.RemediationURL}}" target="_blank" rel="noopener noreferrer"><code>{{$issue.RemediationURL}}</code></a>{{else}}<code>n/a</code>{{end}}</div></div>
+	                  <div class="kv"><div class="kv-label">Evidence ref</div><div class="kv-value"><code>{{$issue.EvidenceRef}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fingerprint</div><div class="kv-value"><code>{{$issue.Fingerprint}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Source</div><div class="kv-value"><code>{{$issue.SourceScanner}}@{{$issue.SourceVersion}}</code></div></div>
+	                </div>
+	              </div>
+	            </td>
+	          </tr>
+	          {{end}}
+	          {{else}}
+	          <tr><td colspan="5">No findings in this group.</td></tr>
+	          {{end}}
+	        </tbody>
+	      </table>
+	    </div>
+
+	    <h3>Suppressed</h3>
+	    <p class="section-note">Findings excluded from current decision due to accepted risk, exceptions, or noise suppression.</p>
+	    <div class="table-wrap">
+	      <table>
+	        <thead>
+	          <tr>
+	            <th title="Simple finding row index.">#</th>
+	            <th title="Stable finding identifier from scanner or normalizer.">finding_id</th>
+	            <th title="Finding domain used by policy logic (for example SECRET, VULNERABILITY, CONFIG).">domain</th>
+	            <th title="Normalized severity level reported for this finding.">severity</th>
+	            <th title="Calculated risk score for this finding after deterministic scoring.">risk_score</th>
+	            <th title="Suppression explanation for this finding.">suppression_reason</th>
+	          </tr>
+	        </thead>
+	        <tbody>
+	          {{if .SuppressedIssues}}
+	          {{range $i, $issue := .SuppressedIssues}}
+	          <tr class="triage-main" data-detail-id="{{$issue.AnchorID}}-detail">
+	            <td>{{inc $i}}</td>
+	            <td><code>{{$issue.FindingID}}</code></td>
+	            <td>{{$issue.Domain}}</td>
+	            <td><span class="severity {{$issue.SeverityClass}}">{{$issue.Severity}}</span></td>
+	            <td>{{$issue.RiskScore}}</td>
+	            <td>{{$issue.StatusHint}}</td>
+	          </tr>
+	          <tr id="{{$issue.AnchorID}}-detail" class="triage-detail" hidden>
+	            <td colspan="6">
+	              <div class="inline-details">
+	                <div class="finding-meta"><span class="status {{$issue.StatusClass}}">{{$issue.Status}}</span> / <span class="severity {{$issue.SeverityClass}}">{{$issue.Severity}}</span> / risk={{$issue.RiskScore}}</div>
+	                <div class="finding-body">
+	                  <div class="kv"><div class="kv-label">Status explanation</div><div class="kv-value"><code>{{$issue.StatusHint}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Title</div><div class="kv-value"><code>{{$issue.Title}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Description</div><div class="kv-value"><code>{{$issue.Description}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Location</div><div class="kv-value"><code>{{$issue.Location}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Package</div><div class="kv-value"><code>{{$issue.PackageName}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">CVE</div><div class="kv-value"><code>{{$issue.CVEID}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">CVSS v3</div><div class="kv-value"><code>{{$issue.CVSSv3}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fix available</div><div class="kv-value"><code>{{$issue.FixAvailable}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fix version</div><div class="kv-value"><code>{{$issue.FixVersion}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Remediation hint</div><div class="kv-value">{{if $issue.RemediationURL}}<a href="{{$issue.RemediationURL}}" target="_blank" rel="noopener noreferrer"><code>{{$issue.RemediationURL}}</code></a>{{else}}<code>n/a</code>{{end}}</div></div>
+	                  <div class="kv"><div class="kv-label">Evidence ref</div><div class="kv-value"><code>{{$issue.EvidenceRef}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fingerprint</div><div class="kv-value"><code>{{$issue.Fingerprint}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Source</div><div class="kv-value"><code>{{$issue.SourceScanner}}@{{$issue.SourceVersion}}</code></div></div>
+	                </div>
+	              </div>
+	            </td>
+	          </tr>
+	          {{end}}
+	          {{else}}
+	          <tr><td colspan="6">No findings in this group.</td></tr>
+	          {{end}}
+	        </tbody>
+	      </table>
+	    </div>
+
+	    <h3>Backlog</h3>
+	    <p class="section-note">Findings counted in risk calculations but not first-priority for changing the current status.</p>
+	    <div class="table-wrap">
+	      <table>
+	        <thead>
+	          <tr>
+	            <th title="Simple finding row index.">#</th>
+	            <th title="Stable finding identifier from scanner or normalizer.">finding_id</th>
+	            <th title="Finding domain used by policy logic (for example SECRET, VULNERABILITY, CONFIG).">domain</th>
+	            <th title="Normalized severity level reported for this finding.">severity</th>
+	            <th title="Calculated risk score for this finding after deterministic scoring.">risk_score</th>
+	          </tr>
+	        </thead>
+	        <tbody>
+	          {{if .OtherIssues}}
+	          {{range $i, $issue := .OtherIssues}}
+	          <tr class="triage-main" data-detail-id="{{$issue.AnchorID}}-detail">
+	            <td>{{inc $i}}</td>
+	            <td><code>{{$issue.FindingID}}</code></td>
+	            <td>{{$issue.Domain}}</td>
+	            <td><span class="severity {{$issue.SeverityClass}}">{{$issue.Severity}}</span></td>
+	            <td>{{$issue.RiskScore}}</td>
+	          </tr>
+	          <tr id="{{$issue.AnchorID}}-detail" class="triage-detail" hidden>
+	            <td colspan="5">
+	              <div class="inline-details">
+	                <div class="finding-meta"><span class="status {{$issue.StatusClass}}">{{$issue.Status}}</span> / <span class="severity {{$issue.SeverityClass}}">{{$issue.Severity}}</span> / risk={{$issue.RiskScore}}</div>
+	                <div class="finding-body">
+	                  <div class="kv"><div class="kv-label">Status explanation</div><div class="kv-value"><code>{{$issue.StatusHint}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Title</div><div class="kv-value"><code>{{$issue.Title}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Description</div><div class="kv-value"><code>{{$issue.Description}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Location</div><div class="kv-value"><code>{{$issue.Location}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Package</div><div class="kv-value"><code>{{$issue.PackageName}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">CVE</div><div class="kv-value"><code>{{$issue.CVEID}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">CVSS v3</div><div class="kv-value"><code>{{$issue.CVSSv3}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fix available</div><div class="kv-value"><code>{{$issue.FixAvailable}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fix version</div><div class="kv-value"><code>{{$issue.FixVersion}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Remediation hint</div><div class="kv-value">{{if $issue.RemediationURL}}<a href="{{$issue.RemediationURL}}" target="_blank" rel="noopener noreferrer"><code>{{$issue.RemediationURL}}</code></a>{{else}}<code>n/a</code>{{end}}</div></div>
+	                  <div class="kv"><div class="kv-label">Evidence ref</div><div class="kv-value"><code>{{$issue.EvidenceRef}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Fingerprint</div><div class="kv-value"><code>{{$issue.Fingerprint}}</code></div></div>
+	                  <div class="kv"><div class="kv-label">Source</div><div class="kv-value"><code>{{$issue.SourceScanner}}@{{$issue.SourceVersion}}</code></div></div>
+	                </div>
+	              </div>
+	            </td>
+	          </tr>
+	          {{end}}
+	          {{else}}
+	          <tr><td colspan="5">{{if .AllConsideredMustFix}}No backlog for this run: all considered findings are required to improve final status.{{else}}No findings in this group.{{end}}</td></tr>
+	          {{end}}
+	        </tbody>
+	      </table>
+	    </div>
+
   </div>
 </div>
+<script>
+document.querySelectorAll('.triage-main').forEach(function (row) {
+  var detailID = row.getAttribute('data-detail-id');
+  if (!detailID) return;
+  var detailRow = document.getElementById(detailID);
+  if (!detailRow) return;
+  row.classList.add('triage-row');
+  row.tabIndex = 0;
+  row.setAttribute('aria-expanded', 'false');
+  var findingIDCell = row.querySelector('td code');
+  var findingID = findingIDCell ? findingIDCell.textContent.trim() : 'finding';
+  row.setAttribute('aria-label', 'Toggle details for ' + findingID);
+  var toggle = function () {
+    var tbody = row.closest('tbody');
+    var isOpen = !detailRow.hidden;
+    if (tbody) {
+      tbody.querySelectorAll('.triage-detail').forEach(function (other) {
+        other.hidden = true;
+      });
+      tbody.querySelectorAll('.triage-main').forEach(function (other) {
+        other.setAttribute('aria-expanded', 'false');
+      });
+    }
+    if (!isOpen) {
+      detailRow.hidden = false;
+      row.setAttribute('aria-expanded', 'true');
+    }
+  };
+  row.addEventListener('click', function () { toggle(); });
+  row.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggle();
+    }
+  });
+});
+</script>
 </body>
 </html>`))
 
 	type issueRow struct {
-		FindingID   string
-		Fingerprint string
-		Domain      string
-		Severity    string
-		RiskScore   int
-		Status      string
-		StatusClass string
-		StatusHint  string
+		AnchorID       string
+		Index          int
+		FindingID      string
+		Fingerprint    string
+		Domain         string
+		Severity       string
+		SeverityClass  string
+		Title          string
+		Description    string
+		Location       string
+		PackageName    string
+		EvidenceRef    string
+		CVEID          string
+		CVSSv3         string
+		FixAvailable   string
+		FixVersion     string
+		RemediationURL string
+		SourceScanner  string
+		SourceVersion  string
+		RiskScore      int
+		Status         string
+		StatusClass    string
+		StatusHint     string
 	}
 
-	acceptedRiskByFingerprint := make(map[string][]string)
-	for riskID, fingerprints := range artifact.Policy.AcceptedRisksCoverage {
-		for _, fp := range fingerprints {
-			acceptedRiskByFingerprint[fp] = append(acceptedRiskByFingerprint[fp], riskID)
-		}
+	acceptedRiskByFingerprint := buildAcceptedRiskIndex(artifact.Policy.AcceptedRisksCoverage)
+	requiredFix := make(map[string]bool, len(plan.Items))
+	for _, item := range plan.Items {
+		requiredFix[item.Fingerprint] = true
 	}
-	for fp := range acceptedRiskByFingerprint {
-		sort.Strings(acceptedRiskByFingerprint[fp])
-	}
-
 	issues := make([]issueRow, 0, len(artifact.Findings.Items))
-	for _, finding := range artifact.Findings.Items {
+	mustFixIssues := make([]issueRow, 0, len(artifact.Findings.Items))
+	suppressedIssues := make([]issueRow, 0, len(artifact.Findings.Items))
+	otherIssues := make([]issueRow, 0, len(artifact.Findings.Items))
+	for idx, finding := range artifact.Findings.Items {
 		status := issueStatus(finding)
 		statusClass := "status-considered"
-		statusHint := "Included in scoring and final decision."
+		statusHint := issueStatusHint(finding, acceptedRiskByFingerprint)
 		switch status {
 		case "SUPPRESSED":
 			statusClass = "status-suppressed"
-			reasons := make([]string, 0, 3)
-			if finding.SuppressedByAcceptedRisk {
-				ids := acceptedRiskByFingerprint[finding.Finding.Fingerprint]
-				if len(ids) > 0 {
-					reasons = append(reasons, "Suppressed by accepted risk: "+strings.Join(ids, ", ")+".")
-				} else {
-					reasons = append(reasons, "Suppressed by accepted risk.")
-				}
-			}
-			if finding.SuppressedByException {
-				reasons = append(reasons, "Suppressed by policy exception.")
-			}
-			if finding.SuppressedByNoiseBudget {
-				reasons = append(reasons, "Suppressed by PR noise budget.")
-			}
-			if len(reasons) == 0 {
-				reasons = append(reasons, "Suppressed by policy controls.")
-			}
-			statusHint = strings.Join(reasons, " ")
 		case string(domain.DecisionBlock):
 			statusClass = "status-block"
-			if strings.TrimSpace(finding.HardStopReason) != "" {
-				statusHint = "Hard-stop finding that forces BLOCK. Reason: " + finding.HardStopReason + "."
-			} else {
-				statusHint = "Hard-stop finding that forces BLOCK."
-			}
 		}
-		issues = append(issues, issueRow{
-			FindingID:   finding.Finding.FindingID,
-			Fingerprint: finding.Finding.Fingerprint,
-			Domain:      finding.Finding.Domain,
-			Severity:    finding.Finding.Severity,
-			RiskScore:   finding.RiskScore,
-			Status:      status,
-			StatusClass: statusClass,
-			StatusHint:  statusHint,
-		})
+		row := issueRow{
+			AnchorID:       findingAnchorID(idx, finding.Finding),
+			Index:          idx + 1,
+			FindingID:      finding.Finding.FindingID,
+			Fingerprint:    finding.Finding.Fingerprint,
+			Domain:         finding.Finding.Domain,
+			Severity:       finding.Finding.Severity,
+			SeverityClass:  severityClassForReport(finding.Finding.Severity),
+			Title:          firstNonEmpty(finding.Finding.Title, "n/a"),
+			Description:    firstNonEmpty(finding.Finding.Description, "n/a"),
+			Location:       firstNonEmpty(finding.Finding.Location.Path, finding.Finding.Location.Target, finding.Finding.Location.File, "n/a"),
+			PackageName:    firstNonEmpty(finding.Finding.Location.Package, "n/a"),
+			EvidenceRef:    firstNonEmpty(finding.Finding.EvidenceRef, "n/a"),
+			CVEID:          firstNonEmpty(finding.Finding.CVE, "n/a"),
+			CVSSv3:         cvssForReport(finding.Finding.CVSSv3),
+			FixAvailable:   firstNonEmpty(finding.Finding.FixAvailable, "unknown"),
+			FixVersion:     firstNonEmpty(finding.Finding.FixVersion, "n/a"),
+			RemediationURL: remediationURLForReport(finding.Finding),
+			SourceScanner:  firstNonEmpty(finding.Finding.SourceScanner, "n/a"),
+			SourceVersion:  firstNonEmpty(finding.Finding.SourceVersion, "n/a"),
+			RiskScore:      finding.RiskScore,
+			Status:         status,
+			StatusClass:    statusClass,
+			StatusHint:     statusHint,
+		}
+		issues = append(issues, row)
+		switch {
+		case status == "SUPPRESSED":
+			suppressedIssues = append(suppressedIssues, row)
+		case requiredFix[finding.Finding.Fingerprint]:
+			mustFixIssues = append(mustFixIssues, row)
+		default:
+			otherIssues = append(otherIssues, row)
+		}
 	}
 
 	decisionClass := "decision-warn"
@@ -1261,35 +1796,43 @@ code {
 	}
 
 	data := struct {
-		ReportTitle       string
-		GeneratedAt       string
-		Inputs            string
-		PolicyVersion     string
-		AcceptedRisksUsed string
-		Decision          string
-		DecisionClass     string
-		ExitCode          int
-		ReleaseRisk       int
-		TrustScore        int
-		TotalFindings     int
-		HardStops         int
-		Considered        int
-		Issues            []issueRow
+		ReportTitle          string
+		GeneratedAt          string
+		Inputs               string
+		PolicyVersion        string
+		AcceptedRisksUsed    string
+		Decision             string
+		DecisionClass        string
+		ExitCode             int
+		ReleaseRisk          int
+		TrustScore           int
+		TotalFindings        int
+		HardStops            int
+		Considered           int
+		AllConsideredMustFix bool
+		AllIssues            []issueRow
+		MustFixIssues        []issueRow
+		SuppressedIssues     []issueRow
+		OtherIssues          []issueRow
 	}{
-		ReportTitle:       "security-gate Decision Report",
-		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
-		Inputs:            strings.Join(inputPaths, ", "),
-		PolicyVersion:     policyVersionForReport(artifact.Policy.PolicyVersion),
-		AcceptedRisksUsed: acceptedRisksUsedForReport(artifact.Policy.AcceptedRisksApplied),
-		Decision:          string(artifact.Decision.Status),
-		DecisionClass:     decisionClass,
-		ExitCode:          artifact.Decision.ExitCode,
-		ReleaseRisk:       artifact.Scoring.ReleaseRisk,
-		TrustScore:        artifact.Trust.TrustScore,
-		TotalFindings:     artifact.Findings.TotalCount,
-		HardStops:         artifact.Findings.HardStopCount,
-		Considered:        artifact.Findings.ConsideredCount,
-		Issues:            issues,
+		ReportTitle:          "security-gate Decision Report",
+		GeneratedAt:          time.Now().UTC().Format(time.RFC3339),
+		Inputs:               strings.Join(inputPaths, ", "),
+		PolicyVersion:        policyVersionForReport(artifact.Policy.PolicyVersion),
+		AcceptedRisksUsed:    acceptedRisksUsedForReport(artifact.Policy.AcceptedRisksApplied),
+		Decision:             string(artifact.Decision.Status),
+		DecisionClass:        decisionClass,
+		ExitCode:             artifact.Decision.ExitCode,
+		ReleaseRisk:          artifact.Scoring.ReleaseRisk,
+		TrustScore:           artifact.Trust.TrustScore,
+		TotalFindings:        artifact.Findings.TotalCount,
+		HardStops:            artifact.Findings.HardStopCount,
+		Considered:           artifact.Findings.ConsideredCount,
+		AllConsideredMustFix: artifact.Findings.ConsideredCount > 0 && len(mustFixIssues) == artifact.Findings.ConsideredCount,
+		AllIssues:            issues,
+		MustFixIssues:        mustFixIssues,
+		SuppressedIssues:     suppressedIssues,
+		OtherIssues:          otherIssues,
 	}
 
 	f, err := os.Create(path)
@@ -1316,4 +1859,87 @@ func acceptedRisksUsedForReport(ids []string) string {
 	ordered := append([]string(nil), ids...)
 	sort.Strings(ordered)
 	return strings.Join(ordered, ", ")
+}
+
+func cvssForReport(score *float64) string {
+	if score == nil {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.1f", *score)
+}
+
+func remediationURLForReport(finding trivy.CanonicalFinding) string {
+	cve := strings.ToUpper(strings.TrimSpace(finding.CVE))
+	if cveIDPattern.MatchString(cve) {
+		return "https://nvd.nist.gov/vuln/detail/" + cve
+	}
+
+	hint := strings.TrimSpace(finding.RemediationHint)
+	hintLower := strings.ToLower(hint)
+	if strings.HasPrefix(hintLower, "https://") || strings.HasPrefix(hintLower, "http://") {
+		return hint
+	}
+
+	return ""
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func findingAnchorID(index int, finding trivy.CanonicalFinding) string {
+	base := strings.TrimSpace(finding.FindingID)
+	if base == "" {
+		base = strings.TrimSpace(finding.Fingerprint)
+	}
+	if base == "" {
+		base = "finding"
+	}
+	return fmt.Sprintf("issue-%d-%s", index+1, anchorSlug(base))
+}
+
+func anchorSlug(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	lastDash := false
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		case r == '-' || r == '_':
+			b.WriteRune(r)
+			lastDash = false
+		default:
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "finding"
+	}
+	return out
+}
+
+func severityClassForReport(severity string) string {
+	switch strings.ToUpper(strings.TrimSpace(severity)) {
+	case "CRITICAL":
+		return "severity-critical"
+	case "HIGH":
+		return "severity-high"
+	case "MEDIUM":
+		return "severity-medium"
+	case "LOW":
+		return "severity-low"
+	default:
+		return "severity-unknown"
+	}
 }

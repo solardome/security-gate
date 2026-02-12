@@ -358,7 +358,7 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <p>Fail-closed defaults:</p>
 <ul>
-<li>stage=main/release/prod: fatal error =&gt; BLOCK and emit minimal decision.json with error metadata.</li>
+<li>stage=main/release/prod: fatal error =&gt; BLOCK and emit minimal report.json with error metadata.</li>
 <li>stage=pr: fatal error =&gt; WARN (exit_code=1) with low-trust defaults ONLY if scanner input is present and hashable; otherwise BLOCK.</li>
 </ul>
 <p>All fatal errors MUST be recorded in decision_trace: event error.fatal with error_code and affected input.</p>
@@ -370,7 +370,7 @@ tr:nth-child(even) td { background: #26170f; }
 <p>Inputs and Outputs:</p>
 <ul>
 <li>Inputs: scanner outputs (file paths or stdin), context.json, policy file, accepted risk file.</li>
-<li>Outputs: decision.json, summary.md, optional HTML report, process exit code.</li>
+<li>Outputs: report.json, summary.md, optional HTML report, process exit code.</li>
 </ul>
 <p>Public Interfaces:</p>
 <ul>
@@ -401,7 +401,7 @@ tr:nth-child(even) td { background: #26170f; }
 <ul>
 <li>If <code>--stage</code> is not provided, <code>context.payload.pipeline_stage</code> is used.</li>
 </ul>
-<li><code>decision.json.inputs.context.payload.pipeline_stage</code> MUST reflect the <strong>effective</strong></li>
+<li><code>report.json.inputs.context.payload.pipeline_stage</code> MUST reflect the <strong>effective</strong></li>
 </ul>
 <p>stage used for evaluation. If a conflicting stage was present in the original context payload and overridden by <code>--stage</code>, the engine MUST record this in <code>decision_trace</code> (for example, via a <code>context.stage_override</code> event with both values) so audits can reconstruct the discrepancy.</p>
 <p>Error Handling:</p>
@@ -412,7 +412,7 @@ tr:nth-child(even) td { background: #26170f; }
 <p>Logging and Traceability:</p>
 <ul>
 <li>Emits a summary of key inputs and outputs.</li>
-<li>Ensures decision_trace is persisted as part of decision.json.</li>
+<li>Ensures decision_trace is persisted as part of report.json.</li>
 <li>Records SHA-256 hashes for every decision-affecting input (scanner outputs, context, policy, and accepted risk files) so the trace ties each decision to the exact file contents.</li>
 </ul>
 <p>Security Considerations:</p>
@@ -544,7 +544,7 @@ tr:nth-child(even) td { background: #26170f; }
 <p>Inputs and Outputs:</p>
 <ul>
 <li>Inputs: module events, hashes, normalized findings, scoring details.</li>
-<li>Outputs: decision_trace array embedded in decision.json (and optional standalone file).</li>
+<li>Outputs: decision_trace array embedded in report.json (and optional standalone file).</li>
 </ul>
 <p>Public Interfaces:</p>
 <ul>
@@ -609,7 +609,7 @@ tr:nth-child(even) td { background: #26170f; }
 <h2 id="report">report</h2>
 <p>Purpose:</p>
 <ul>
-<li>Generate decision.json, summary.md, and optional HTML report.</li>
+<li>Generate report.json, summary.md, and optional HTML report.</li>
 </ul>
 <p>Inputs and Outputs:</p>
 <ul>
@@ -618,11 +618,11 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <p>Public Interfaces:</p>
 <ul>
-<li>Emits decision.json with the authoritative schema and summary.md for humans.</li>
+<li>Emits report.json with the authoritative schema and summary.md for humans.</li>
 </ul>
 <p>Error Handling:</p>
 <ul>
-<li>Schema validation failure for decision.json is a fatal error.</li>
+<li>Schema validation failure for report.json is a fatal error.</li>
 </ul>
 <p>Logging and Traceability:</p>
 <ul>
@@ -640,7 +640,7 @@ tr:nth-child(even) td { background: #26170f; }
 <p>Inputs and Outputs:</p>
 <ul>
 <li>Inputs: sanitized decision_trace, deterministic recommended_next_steps.</li>
-<li>Outputs: explanation text and content_ref in decision.json.</li>
+<li>Outputs: explanation text and content_ref in report.json.</li>
 </ul>
 <p>Public Interfaces:</p>
 <ul>
