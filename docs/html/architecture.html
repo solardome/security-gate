@@ -373,7 +373,7 @@ tr:nth-child(even) td { background: #26170f; }
 <li>policy applies noise budget, exceptions, accepted risks, and stage decision matrix.</li>
 <li>decision_trace records ordered trace events and all authoritative inputs.</li>
 <li>governance (accepted risk) validates time-bound justifications and scope.</li>
-<li>report renders report.json, summary.md, and optional HTML.</li>
+<li>report renders report.json and optional HTML.</li>
 <li>llm consumes sanitized trace data and produces non-authoritative text only.</li>
 </ul>
 <h2 id="data-flow-authoritative">Data Flow (Authoritative)</h2>
@@ -426,12 +426,12 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <h2 id="acceptance-criteria">Acceptance Criteria</h2>
 <ul>
-<li><input type="checkbox" > Architecture diagram reflects the deterministic pipeline and optional LLM boundary.</li>
-<li><input type="checkbox" > Module boundaries match the core decision engine responsibilities.</li>
-<li><input type="checkbox" > Data flow includes ingest, normalize, score, policy, decision trace, and report.</li>
-<li><input type="checkbox" > Trust/provenance flow and its effect on decisions is explicit.</li>
-<li><input type="checkbox" > Failure modes describe fail-closed behavior for merge/release/prod.</li>
-<li><input type="checkbox" > Extensibility guidance does not alter deterministic decision logic.</li>
+<li>Architecture diagram reflects the deterministic pipeline and optional LLM boundary.</li>
+<li>Module boundaries match the core decision engine responsibilities.</li>
+<li>Data flow includes ingest, normalize, score, policy, decision trace, and report.</li>
+<li>Trust/provenance flow and its effect on decisions is explicit.</li>
+<li>Failure modes describe fail-closed behavior for merge/release/prod.</li>
+<li>Extensibility guidance does not alter deterministic decision logic.</li>
 </ul>
     </article>
   </div>

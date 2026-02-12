@@ -370,7 +370,7 @@ tr:nth-child(even) td { background: #26170f; }
 <p>Inputs and Outputs:</p>
 <ul>
 <li>Inputs: scanner outputs (file paths or stdin), context.json, policy file, accepted risk file.</li>
-<li>Outputs: report.json, summary.md, optional HTML report, process exit code.</li>
+<li>Outputs: report.json, optional HTML report, process exit code.</li>
 </ul>
 <p>Public Interfaces:</p>
 <ul>
@@ -609,7 +609,7 @@ tr:nth-child(even) td { background: #26170f; }
 <h2 id="report">report</h2>
 <p>Purpose:</p>
 <ul>
-<li>Generate report.json, summary.md, and optional HTML report.</li>
+<li>Generate report.json and optional HTML report.</li>
 </ul>
 <p>Inputs and Outputs:</p>
 <ul>
@@ -618,7 +618,7 @@ tr:nth-child(even) td { background: #26170f; }
 </ul>
 <p>Public Interfaces:</p>
 <ul>
-<li>Emits report.json with the authoritative schema and summary.md for humans.</li>
+<li>Emits report.json with the authoritative schema; HTML is optional for humans.</li>
 </ul>
 <p>Error Handling:</p>
 <ul>

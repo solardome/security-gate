@@ -75,9 +75,9 @@ those canonical tokens).
 - Report formats can be extended without affecting decision logic.
 
 ## Acceptance Criteria
-- [ ] Architecture diagram reflects the deterministic pipeline and optional LLM boundary.
-- [ ] Module boundaries match the core decision engine responsibilities.
-- [ ] Data flow includes ingest, normalize, score, policy, decision trace, and report.
-- [ ] Trust/provenance flow and its effect on decisions is explicit.
-- [ ] Failure modes describe fail-closed behavior for merge/release/prod.
-- [ ] Extensibility guidance does not alter deterministic decision logic.
+- Architecture diagram reflects the deterministic pipeline and optional LLM boundary.
+- Module boundaries match the core decision engine responsibilities.
+- Data flow includes ingest, normalize, score, policy, decision trace, and report.
+- Trust/provenance flow and its effect on decisions is explicit.
+- Failure modes describe fail-closed behavior for merge/release/prod.
+- Extensibility guidance does not alter deterministic decision logic.
