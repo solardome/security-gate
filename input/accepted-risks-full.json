@@ -8,7 +8,7 @@
     "stage_scope": ["release", "prod"],
     "environment_scope": ["staging", "prod"],
     "finding_selector": {
-      "fingerprint": "87760c1a55296679e5f8382024e14c6ecaa7af4c21503a076cffb115dd5b0641",
+      "fingerprint": "5b1de0ddbd2a9b4e235545cfa859c2f89d5650951479de9383f50cf64ec7a2ed",
       "domain": "VULNERABILITY",
       "cve_id": "CVE-2024-10001",
       "title_contains": "Example vulnerable dependency",
@@ -60,7 +60,7 @@
     "stage_scope": ["release", "prod"],
     "environment_scope": ["staging", "prod"],
     "finding_selector": {
-      "fingerprint": "expired-risk-example-fingerprint",
+      "fingerprint": "be5d3f5b372dffe80a5af06ea73abf7ce34605ac9167595228c90ef1867c1902",
       "domain": "VULNERABILITY",
       "source_scanner": "trivy",
       "severity": "CRITICAL"
@@ -78,8 +78,8 @@
     ],
     "created_at": "2025-11-01T10:00:00Z",
     "updated_at": "2025-12-01T10:00:00Z",
-    "expires_at": "2026-01-15T00:00:00Z",
-    "status": "expired",
+    "expires_at": "2026-12-31T00:00:00Z",
+    "status": "active",
     "audit": [
       {
         "timestamp": "2025-11-01T10:00:00Z",

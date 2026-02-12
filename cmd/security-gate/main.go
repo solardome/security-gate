@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -32,6 +34,8 @@ const (
 	embeddedDefaultPolicyRaw = `{"policy_version":"embedded-default","rules":[],"exceptions":[]}`
 	maxContextBytes          = 256 * 1024
 	maxPolicyBytes           = 1 * 1024 * 1024
+	defaultReportsDir        = "reports"
+	defaultLogsDir           = "logs"
 )
 
 type contextPayload struct {
@@ -74,6 +78,7 @@ type fatalHandler struct {
 	acceptedRiskHash string
 	scanHashes       map[string]string
 	scanMetadata     map[string]policy.ScanMetadata
+	logger           *runLogger
 }
 
 type fatalSnapshot struct {
@@ -86,6 +91,12 @@ type fatalSnapshot struct {
 	scanMetadata     map[string]policy.ScanMetadata
 	decisionStatus   domain.DecisionType
 	exitCode         int
+}
+
+type runLogger struct {
+	base *slog.Logger
+	file *os.File
+	path string
 }
 
 func (e codedError) Error() string {
@@ -135,22 +146,31 @@ func (f *stringSliceFlag) Set(value string) error {
 
 func main() {
 	now := time.Now().UTC()
-	cfg, err := parseCLI(now)
+	cfg, err := parseCLI()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "invalid arguments: %v\n", err)
 		os.Exit(2)
 	}
+	logger, err := initRunLogger(now)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "logger init failed: %v\n", err)
+		os.Exit(2)
+	}
+	defer logger.close()
+	logger.info("run.start", "inputs", len(cfg.inputs), "stdin", cfg.useStdin, "report_html", cfg.reportHTML, "llm", cfg.llmEnabled)
 
 	fatalState := fatalHandler{
 		now:       now,
 		outputDir: cfg.outputDir,
 		stage:     policy.StagePR,
+		logger:    logger,
 	}
 
 	ctxPayload, contextHash, err := loadContext(cfg.contextPath)
 	if err != nil {
 		fatalState.fail("CONTEXT_LOAD_FAILED", "context", err)
 	}
+	logger.info("context.loaded", "context_hash", contextHash)
 	fatalState.ctx = ctxPayload
 	fatalState.contextHash = contextHash
 
@@ -175,6 +195,7 @@ func main() {
 	if err != nil {
 		fatalState.fail("INGEST_FAILED", "scan_input", err)
 	}
+	logger.info("ingest.completed", "findings", len(ingestResult.Findings), "scan_inputs", len(ingestResult.InputHashes))
 	fatalState.scannerHashable = true
 	fatalState.scanHashes = ingestResult.InputHashes
 
@@ -203,6 +224,7 @@ func main() {
 		fatalState.fail("POLICY_LOAD_FAILED", "policy", err)
 	}
 	fatalState.policyHash = policyHash
+	logger.info("policy.loaded", "policy_version", effectivePolicy.PolicyVersion, "policy_hash", policyHash)
 
 	acceptedRisks, acceptedRiskHash, err := loadAcceptedRisks(cfg.acceptedRiskPath)
 	if err != nil {
@@ -211,6 +233,11 @@ func main() {
 		fatalState.fail("ACCEPTED_RISK_LOAD_FAILED", "accepted_risks", err)
 	}
 	fatalState.acceptedRiskHash = acceptedRiskHash
+	logger.info("accepted_risks.loaded", "count", len(acceptedRisks), "accepted_risk_hash", acceptedRiskHash)
+
+	resolvedOutputDir := resolveOutputDir(cfg, now, stage, contextHash, policyHash, acceptedRiskHash, ingestResult.InputHashes)
+	fatalState.outputDir = resolvedOutputDir
+	logger.info("report.output_dir_resolved", "output_dir", resolvedOutputDir)
 
 	artifact, err := policy.Evaluate(policy.EvaluationInput{
 		Stage:       stage,
@@ -249,26 +276,31 @@ func main() {
 		DecisionArtifact: artifact,
 	}
 
-	outputDir := cfg.outputDir
-	decisionPath, summaryPath, htmlPath, err := writeReports(now, outputDir, report, artifact, ingestPaths, cfg.reportHTML)
+	decisionPath, htmlPath, checksumsPath, err := writeReports(now, resolvedOutputDir, report, artifact, ingestPaths, cfg.reportHTML)
 	if err != nil {
 		fatalState.fail("REPORT_WRITE_FAILED", reportWriteAffectedInput(err), err)
 	}
+	logger.info("report.generated", "decision", artifact.Decision.Status, "exit_code", artifact.Decision.ExitCode, "decision_json", decisionPath, "html", htmlPath, "checksums", checksumsPath)
 
-	fmt.Printf("Report generated.\n- Decision JSON: %s\n- Summary: %s\n", decisionPath, summaryPath)
+	fmt.Printf("Report generated.\n- Decision JSON: %s\n- Checksums: %s\n", decisionPath, checksumsPath)
 	if htmlPath != "" {
 		fmt.Printf("- HTML: %s\n", htmlPath)
 	}
+	fmt.Printf("- Logs: %s\n", logger.path)
 	os.Exit(artifact.Decision.ExitCode)
 }
 
 func (h fatalHandler) fail(defaultCode, affectedInput string, err error) {
+	resolvedCode := resolveFatalCode(defaultCode, err)
+	if h.logger != nil {
+		h.logger.error("run.fatal", "error_code", resolvedCode, "affected_input", affectedInput, "error", err.Error())
+	}
 	fatalExit(
 		h.now,
 		h.outputDir,
 		h.stage,
 		h.scannerHashable,
-		resolveFatalCode(defaultCode, err),
+		resolvedCode,
 		affectedInput,
 		err,
 		h.ctx,
@@ -280,16 +312,54 @@ func (h fatalHandler) fail(defaultCode, affectedInput string, err error) {
 	)
 }
 
+func initRunLogger(now time.Time) (*runLogger, error) {
+	if err := os.MkdirAll(defaultLogsDir, 0o755); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(defaultLogsDir, fmt.Sprintf("security-gate-%s.log", now.Format("20060102-150405")))
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	handler := slog.NewJSONHandler(file, &slog.HandlerOptions{Level: slog.LevelInfo})
+	return &runLogger{
+		base: slog.New(handler).With("component", "security-gate"),
+		file: file,
+		path: path,
+	}, nil
+}
+
+func (l *runLogger) info(msg string, kv ...any) {
+	if l == nil || l.base == nil {
+		return
+	}
+	l.base.Info(msg, kv...)
+}
+
+func (l *runLogger) error(msg string, kv ...any) {
+	if l == nil || l.base == nil {
+		return
+	}
+	l.base.Error(msg, kv...)
+}
+
+func (l *runLogger) close() {
+	if l == nil || l.file == nil {
+		return
+	}
+	_ = l.file.Close()
+}
+
 func reportWriteAffectedInput(err error) string {
 	switch resolveFatalCode("", err) {
 	case "OUTPUT_DIR_CREATE_FAILED":
 		return "output_dir"
 	case "DECISION_WRITE_FAILED":
 		return "decision.json"
-	case "SUMMARY_WRITE_FAILED":
-		return "summary.md"
 	case "HTML_WRITE_FAILED":
 		return "report.html"
+	case "CHECKSUMS_WRITE_FAILED":
+		return "checksums.sha256"
 	default:
 		return "report_output"
 	}
@@ -350,9 +420,42 @@ func loadAcceptedRisks(path string) ([]policy.AcceptedRisk, string, error) {
 	return loaded, hash, nil
 }
 
+func resolveOutputDir(cfg cliConfig, now time.Time, stage policy.Stage, contextHash, policyHash, acceptedRiskHash string, scanHashes map[string]string) string {
+	if cfg.outputDirExplicit && strings.TrimSpace(cfg.outputDir) != "" {
+		return cfg.outputDir
+	}
+	return filepath.Join(defaultReportsDir, fmt.Sprintf("%s-%s", now.Format("20060102-150405"), buildRunID(stage, contextHash, policyHash, acceptedRiskHash, scanHashes)))
+}
+
+func buildRunID(stage policy.Stage, contextHash, policyHash, acceptedRiskHash string, scanHashes map[string]string) string {
+	paths := make([]string, 0, len(scanHashes))
+	for path := range scanHashes {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	var b strings.Builder
+	b.WriteString("stage=")
+	b.WriteString(string(stage))
+	b.WriteString("|context=")
+	b.WriteString(contextHash)
+	b.WriteString("|policy=")
+	b.WriteString(policyHash)
+	b.WriteString("|accepted_risks=")
+	b.WriteString(acceptedRiskHash)
+	for _, path := range paths {
+		b.WriteString("|scan:")
+		b.WriteString(path)
+		b.WriteString("=")
+		b.WriteString(scanHashes[path])
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])[:12]
+}
+
 func writeReports(now time.Time, outputDir string, report decisionReport, artifact policy.DecisionArtifact, inputPaths []string, includeHTML bool) (string, string, string, error) {
 	if strings.TrimSpace(outputDir) == "" {
-		outputDir = filepath.Join("reports", now.Format("20060102-150405"))
+		outputDir = filepath.Join(defaultReportsDir, now.Format("20060102-150405"))
 	}
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return "", "", "", withErrorCode("OUTPUT_DIR_CREATE_FAILED", err)
@@ -363,11 +466,6 @@ func writeReports(now time.Time, outputDir string, report decisionReport, artifa
 		return "", "", "", withErrorCode("DECISION_WRITE_FAILED", err)
 	}
 
-	summaryPath := filepath.Join(outputDir, "summary.md")
-	if err := os.WriteFile(summaryPath, []byte(buildSummary(artifact, inputPaths)), 0o644); err != nil {
-		return "", "", "", withErrorCode("SUMMARY_WRITE_FAILED", err)
-	}
-
 	htmlPath := ""
 	if includeHTML {
 		htmlPath = filepath.Join(outputDir, "report.html")
@@ -375,7 +473,13 @@ func writeReports(now time.Time, outputDir string, report decisionReport, artifa
 			return "", "", "", withErrorCode("HTML_WRITE_FAILED", err)
 		}
 	}
-	return decisionPath, summaryPath, htmlPath, nil
+
+	checksumsPath, err := writeReportChecksums(outputDir, decisionPath, htmlPath)
+	if err != nil {
+		return "", "", "", withErrorCode("CHECKSUMS_WRITE_FAILED", err)
+	}
+
+	return decisionPath, htmlPath, checksumsPath, nil
 }
 
 func firstScanTimestamp(findings []trivy.CanonicalFinding, fallback time.Time) time.Time {
@@ -478,7 +582,7 @@ func buildFatalSnapshot(now time.Time, outputDir string, stage policy.Stage, sca
 	}
 
 	if strings.TrimSpace(snapshot.outputDir) == "" {
-		snapshot.outputDir = filepath.Join("reports", now.Format("20060102-150405"))
+		snapshot.outputDir = filepath.Join(defaultReportsDir, now.Format("20060102-150405"))
 	}
 	if strings.TrimSpace(snapshot.ctx.PipelineStage) == "" {
 		snapshot.ctx.PipelineStage = string(stage)
@@ -625,38 +729,49 @@ func writeJSON(path string, value any) error {
 	return os.WriteFile(path, raw, 0o644)
 }
 
-func buildSummary(artifact policy.DecisionArtifact, inputPaths []string) string {
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func writeReportChecksums(outputDir, decisionPath, htmlPath string) (string, error) {
+	type entry struct {
+		name string
+		path string
+	}
+	entries := []entry{
+		{name: "decision.json", path: decisionPath},
+	}
+	if strings.TrimSpace(htmlPath) != "" {
+		entries = append(entries, entry{name: "report.html", path: htmlPath})
+	}
+
 	var b strings.Builder
-	b.WriteString("# security-gate summary\n\n")
-	b.WriteString(fmt.Sprintf("- Inputs: `%s`\n", strings.Join(inputPaths, ", ")))
-	b.WriteString(fmt.Sprintf("- Decision: **%s** (exit_code=%d)\n", artifact.Decision.Status, artifact.Decision.ExitCode))
-	b.WriteString(fmt.Sprintf("- Release risk: %d\n", artifact.Scoring.ReleaseRisk))
-	b.WriteString(fmt.Sprintf("- Trust score: %d\n", artifact.Trust.TrustScore))
-	b.WriteString(fmt.Sprintf("- Findings: %d total, %d hard-stop, %d considered\n\n", artifact.Findings.TotalCount, artifact.Findings.HardStopCount, artifact.Findings.ConsideredCount))
-
-	if len(artifact.RecommendedSteps) > 0 {
-		b.WriteString("## Recommended Next Steps\n")
-		for _, step := range artifact.RecommendedSteps {
-			b.WriteString(fmt.Sprintf("- `%s`\n", step))
+	for _, e := range entries {
+		sum, err := fileSHA256(e.path)
+		if err != nil {
+			return "", err
 		}
-		b.WriteString("\n")
+		b.WriteString(sum)
+		b.WriteString("  ")
+		b.WriteString(e.name)
+		b.WriteByte('\n')
 	}
 
-	b.WriteString("## Issue Statuses\n")
-	b.WriteString("| finding_id | fingerprint | domain | severity | risk_score | status |\n")
-	b.WriteString("|---|---|---|---|---:|---|\n")
-	for _, finding := range artifact.Findings.Items {
-		b.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %d | %s |\n",
-			finding.Finding.FindingID,
-			finding.Finding.Fingerprint,
-			finding.Finding.Domain,
-			finding.Finding.Severity,
-			finding.RiskScore,
-			issueStatus(finding),
-		))
+	path := filepath.Join(outputDir, "checksums.sha256")
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		return "", err
 	}
-
-	return b.String()
+	return path, nil
 }
 
 func issueStatus(f scoring.ScoredFinding) string {
@@ -671,18 +786,19 @@ func issueStatus(f scoring.ScoredFinding) string {
 }
 
 type cliConfig struct {
-	inputs           []string
-	useStdin         bool
-	contextPath      string
-	policyPath       string
-	acceptedRiskPath string
-	outputDir        string
-	stageOverride    string
-	reportHTML       bool
-	llmEnabled       bool
+	inputs            []string
+	useStdin          bool
+	contextPath       string
+	policyPath        string
+	acceptedRiskPath  string
+	outputDir         string
+	outputDirExplicit bool
+	stageOverride     string
+	reportHTML        bool
+	llmEnabled        bool
 }
 
-func parseCLI(now time.Time) (cliConfig, error) {
+func parseCLI() (cliConfig, error) {
 	var cfg cliConfig
 	var inputFlags stringSliceFlag
 	var llmFlag string
@@ -692,11 +808,16 @@ func parseCLI(now time.Time) (cliConfig, error) {
 	flag.StringVar(&cfg.contextPath, "context", "", "path to context JSON")
 	flag.StringVar(&cfg.policyPath, "policy", "", "path to policy JSON")
 	flag.StringVar(&cfg.acceptedRiskPath, "accepted-risk", "", "path to accepted risks JSON")
-	flag.StringVar(&cfg.outputDir, "output-dir", filepath.Join("reports", now.Format("20060102-150405")), "output directory for reports")
+	flag.StringVar(&cfg.outputDir, "output-dir", "", "output directory for reports (default: reports/<timestamp>-<runid>)")
 	flag.StringVar(&cfg.stageOverride, "stage", "", "pipeline stage override: pr|main|release|prod")
 	flag.BoolVar(&cfg.reportHTML, "report-html", false, "emit optional static HTML report")
 	flag.StringVar(&llmFlag, "llm", "off", "LLM mode: on|off")
 	flag.Parse()
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "output-dir" {
+			cfg.outputDirExplicit = true
+		}
+	})
 
 	if len(flag.Args()) > 0 {
 		return cfg, fmt.Errorf("unexpected positional arguments: %s", strings.Join(flag.Args(), " "))
@@ -841,35 +962,334 @@ func buildTrustContext(ctx contextPayload, scanMetadata map[string]policy.ScanMe
 func writeHTMLReport(path string, artifact policy.DecisionArtifact, inputPaths []string) error {
 	tmpl := template.Must(template.New("report").Parse(`<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>security-gate report</title></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.ReportTitle}}</title>
+<style>
+:root {
+  --bg: #120c08;
+  --panel: #1d1410;
+  --ink: #ffe7c2;
+  --muted: #d2a777;
+  --accent: #ff9f2f;
+  --accent-soft: #3a2416;
+  --line: #5e3a22;
+  --ok: #43d17f;
+  --warn: #ffcf5a;
+  --block: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.6;
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 520px at 0% 0%, #ff8b2f55 0%, transparent 60%),
+    radial-gradient(760px 460px at 100% 0%, #ffbf3f2e 0%, transparent 62%),
+    radial-gradient(860px 480px at 50% 100%, #ff6a0035 0%, transparent 65%),
+    var(--bg);
+}
+.layout {
+  width: min(1100px, calc(100vw - 2.4rem));
+  margin: 1.2rem auto 2rem;
+}
+.site-header {
+  padding: 0.85rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(27, 17, 12, 0.92);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+.brand-text { line-height: 1.2; }
+.brand-app { font-weight: 700; font-size: 1.05rem; }
+.brand-sub { color: var(--muted); font-size: 0.85rem; }
+.header {
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--line);
+  background: rgba(40, 25, 17, 0.82);
+  border-radius: 14px;
+  margin-bottom: 1rem;
+}
+.header h1 { margin: 0; font-size: clamp(1.2rem, 2.5vw, 1.7rem); }
+.header p { margin: 0.2rem 0 0; color: var(--muted); }
+.card {
+  background: var(--panel);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 35px -28px rgba(12, 35, 66, 0.45);
+  padding: clamp(1rem, 2.4vw, 2rem);
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.stat {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #2b1a11;
+  padding: 0.7rem;
+}
+.stat .label { color: var(--muted); font-size: 0.82rem; }
+.stat .value { font-weight: 700; font-size: 1rem; margin-top: 0.1rem; }
+.decision-badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-weight: 700;
+  display: inline-block;
+}
+.decision-allow { color: var(--ok); background: #17311f; border-color: #2a6f41; }
+.decision-warn { color: var(--warn); background: #3b2f0f; border-color: #7a5f19; }
+.decision-block { color: var(--block); background: #3a1818; border-color: #7c2d2d; }
+.table-wrap { overflow-x: auto; margin-top: 0.7rem; max-width: 100%; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  table-layout: fixed;
+}
+thead tr { background: #3a2316; }
+th, td {
+  border: 1px solid var(--line);
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+tr:nth-child(even) td { background: #26170f; }
+code {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  background: #2d1a11;
+  border: 1px solid #6a4328;
+  padding: 0.1rem 0.32rem;
+  border-radius: 6px;
+}
+.status {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.status-considered { color: #9fb3c8; background: #1e2630; border-color: #3a4d63; }
+.status-suppressed { color: #c9b27a; background: #2f2818; border-color: #6f5c30; }
+.status-block { color: var(--block); background: #3a1818; border-color: #7c2d2d; }
+@media (max-width: 920px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  th, td { font-size: 0.88rem; }
+}
+</style>
+</head>
 <body>
-<h1>security-gate report</h1>
-<p><strong>Inputs:</strong> {{.Inputs}}</p>
-<p><strong>Decision:</strong> {{.Decision}} (exit_code={{.ExitCode}})</p>
-<p><strong>Release risk:</strong> {{.ReleaseRisk}}</p>
-<p><strong>Trust score:</strong> {{.TrustScore}}</p>
-<p><strong>Findings:</strong> {{.TotalFindings}} total, {{.HardStops}} hard-stop, {{.Considered}} considered</p>
+<div class="layout">
+  <div class="site-header">
+    <div class="brand">
+      <svg class="brand-logo" viewBox="0 0 48 48" aria-hidden="true">
+        <defs>
+          <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ffcf5a"/>
+            <stop offset="100%" stop-color="#ff7a1a"/>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="18" fill="none" stroke="url(#logoGradient)" stroke-width="4"/>
+        <path d="M16 26c3 0 5-2 6-5 2 5 5 7 10 7" fill="none" stroke="#ffcf5a" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      <div class="brand-text">
+        <div class="brand-app">security-gate</div>
+        <div class="brand-sub">Deterministic CI/CD Decision Report</div>
+      </div>
+    </div>
+    <div><code>{{.GeneratedAt}}</code></div>
+  </div>
+
+  <div class="header">
+    <h1>Release Decision</h1>
+    <p><strong>Final status:</strong> <span class="decision-badge {{.DecisionClass}}">{{.Decision}}</span></p>
+    <p><strong>Policy version:</strong> <code>{{.PolicyVersion}}</code></p>
+    <p><strong>Accepted risks used:</strong> <code>{{.AcceptedRisksUsed}}</code></p>
+    <p><strong>Inputs:</strong> <code>{{.Inputs}}</code></p>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat" title="Max release risk score after policy, stage, exposure, and trust modifiers."><div class="label">Release risk</div><div class="value">{{.ReleaseRisk}}</div></div>
+      <div class="stat" title="Input trust rating based on provenance, signing signals, and scanner confidence."><div class="label">Trust score</div><div class="value">{{.TrustScore}}</div></div>
+      <div class="stat" title="Total normalized findings loaded from input scans."><div class="label">Findings total</div><div class="value">{{.TotalFindings}}</div></div>
+      <div class="stat" title="Findings marked as non-suppressible hard-stop conditions."><div class="label">Hard-stop</div><div class="value">{{.HardStops}}</div></div>
+      <div class="stat" title="Findings currently counted in decision/scoring after suppressions."><div class="label">Considered</div><div class="value">{{.Considered}}</div></div>
+    </div>
+
+    <h2>Issue Statuses</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th title="Stable finding identifier from scanner or normalizer.">finding_id</th>
+            <th title="Deterministic hash used for tracking and accepted-risk matching.">fingerprint</th>
+            <th title="Finding domain used by policy logic (for example SECRET, VULNERABILITY, CONFIG).">domain</th>
+            <th title="Normalized severity level reported for this finding.">severity</th>
+            <th title="Calculated risk score for this finding after deterministic scoring.">risk_score</th>
+            <th title="Evaluation outcome for this finding in the current run.">status</th>
+            <th title="Short explanation of why this status was assigned.">explanation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Issues}}
+          <tr>
+            <td><code>{{.FindingID}}</code></td>
+            <td><code>{{.Fingerprint}}</code></td>
+            <td>{{.Domain}}</td>
+            <td>{{.Severity}}</td>
+            <td>{{.RiskScore}}</td>
+            <td><span class="status {{.StatusClass}}" title="{{.StatusHint}}">{{.Status}}</span></td>
+            <td>{{.StatusHint}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 </body>
 </html>`))
 
+	type issueRow struct {
+		FindingID   string
+		Fingerprint string
+		Domain      string
+		Severity    string
+		RiskScore   int
+		Status      string
+		StatusClass string
+		StatusHint  string
+	}
+
+	acceptedRiskByFingerprint := make(map[string][]string)
+	for riskID, fingerprints := range artifact.Policy.AcceptedRisksCoverage {
+		for _, fp := range fingerprints {
+			acceptedRiskByFingerprint[fp] = append(acceptedRiskByFingerprint[fp], riskID)
+		}
+	}
+	for fp := range acceptedRiskByFingerprint {
+		sort.Strings(acceptedRiskByFingerprint[fp])
+	}
+
+	issues := make([]issueRow, 0, len(artifact.Findings.Items))
+	for _, finding := range artifact.Findings.Items {
+		status := issueStatus(finding)
+		statusClass := "status-considered"
+		statusHint := "Included in scoring and final decision."
+		switch status {
+		case "SUPPRESSED":
+			statusClass = "status-suppressed"
+			reasons := make([]string, 0, 3)
+			if finding.SuppressedByAcceptedRisk {
+				ids := acceptedRiskByFingerprint[finding.Finding.Fingerprint]
+				if len(ids) > 0 {
+					reasons = append(reasons, "Suppressed by accepted risk: "+strings.Join(ids, ", ")+".")
+				} else {
+					reasons = append(reasons, "Suppressed by accepted risk.")
+				}
+			}
+			if finding.SuppressedByException {
+				reasons = append(reasons, "Suppressed by policy exception.")
+			}
+			if finding.SuppressedByNoiseBudget {
+				reasons = append(reasons, "Suppressed by PR noise budget.")
+			}
+			if len(reasons) == 0 {
+				reasons = append(reasons, "Suppressed by policy controls.")
+			}
+			statusHint = strings.Join(reasons, " ")
+		case string(domain.DecisionBlock):
+			statusClass = "status-block"
+			if strings.TrimSpace(finding.HardStopReason) != "" {
+				statusHint = "Hard-stop finding that forces BLOCK. Reason: " + finding.HardStopReason + "."
+			} else {
+				statusHint = "Hard-stop finding that forces BLOCK."
+			}
+		}
+		issues = append(issues, issueRow{
+			FindingID:   finding.Finding.FindingID,
+			Fingerprint: finding.Finding.Fingerprint,
+			Domain:      finding.Finding.Domain,
+			Severity:    finding.Finding.Severity,
+			RiskScore:   finding.RiskScore,
+			Status:      status,
+			StatusClass: statusClass,
+			StatusHint:  statusHint,
+		})
+	}
+
+	decisionClass := "decision-warn"
+	switch artifact.Decision.Status {
+	case domain.DecisionAllow:
+		decisionClass = "decision-allow"
+	case domain.DecisionBlock:
+		decisionClass = "decision-block"
+	}
+
 	data := struct {
-		Inputs        string
-		Decision      string
-		ExitCode      int
-		ReleaseRisk   int
-		TrustScore    int
-		TotalFindings int
-		HardStops     int
-		Considered    int
+		ReportTitle       string
+		GeneratedAt       string
+		Inputs            string
+		PolicyVersion     string
+		AcceptedRisksUsed string
+		Decision          string
+		DecisionClass     string
+		ExitCode          int
+		ReleaseRisk       int
+		TrustScore        int
+		TotalFindings     int
+		HardStops         int
+		Considered        int
+		Issues            []issueRow
 	}{
-		Inputs:        strings.Join(inputPaths, ", "),
-		Decision:      string(artifact.Decision.Status),
-		ExitCode:      artifact.Decision.ExitCode,
-		ReleaseRisk:   artifact.Scoring.ReleaseRisk,
-		TrustScore:    artifact.Trust.TrustScore,
-		TotalFindings: artifact.Findings.TotalCount,
-		HardStops:     artifact.Findings.HardStopCount,
-		Considered:    artifact.Findings.ConsideredCount,
+		ReportTitle:       "security-gate Decision Report",
+		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
+		Inputs:            strings.Join(inputPaths, ", "),
+		PolicyVersion:     policyVersionForReport(artifact.Policy.PolicyVersion),
+		AcceptedRisksUsed: acceptedRisksUsedForReport(artifact.Policy.AcceptedRisksApplied),
+		Decision:          string(artifact.Decision.Status),
+		DecisionClass:     decisionClass,
+		ExitCode:          artifact.Decision.ExitCode,
+		ReleaseRisk:       artifact.Scoring.ReleaseRisk,
+		TrustScore:        artifact.Trust.TrustScore,
+		TotalFindings:     artifact.Findings.TotalCount,
+		HardStops:         artifact.Findings.HardStopCount,
+		Considered:        artifact.Findings.ConsideredCount,
+		Issues:            issues,
 	}
 
 	f, err := os.Create(path)
@@ -879,4 +1299,21 @@ func writeHTMLReport(path string, artifact policy.DecisionArtifact, inputPaths [
 	defer f.Close()
 
 	return tmpl.Execute(f, data)
+}
+
+func policyVersionForReport(version string) string {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return "unknown"
+	}
+	return version
+}
+
+func acceptedRisksUsedForReport(ids []string) string {
+	if len(ids) == 0 {
+		return "none"
+	}
+	ordered := append([]string(nil), ids...)
+	sort.Strings(ordered)
+	return strings.Join(ordered, ", ")
 }

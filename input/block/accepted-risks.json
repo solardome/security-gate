@@ -1,0 +1,98 @@
+[
+  {
+    "risk_id": "AR-2026-0001",
+    "title": "Temporary acceptance for release blocker dependency",
+    "rationale": "Release window is fixed; fix is scheduled next sprint with compensating controls in place.",
+    "owner": "platform-security",
+    "ticket": "SEC-1245",
+    "stage_scope": ["release", "prod"],
+    "environment_scope": ["staging", "prod"],
+    "finding_selector": {
+      "fingerprint": "5b1de0ddbd2a9b4e235545cfa859c2f89d5650951479de9383f50cf64ec7a2ed",
+      "domain": "VULNERABILITY",
+      "cve_id": "CVE-2024-10001",
+      "title_contains": "Example vulnerable dependency",
+      "location_contains": "app/backend",
+      "source_scanner": "trivy",
+      "severity": "HIGH"
+    },
+    "effects": [
+      "suppress_from_scoring"
+    ],
+    "allow_warn_in_prod": false,
+    "approvals": [
+      {
+        "name": "Alice Doe",
+        "role": "security",
+        "approved_at": "2026-02-01T09:30:00Z"
+      },
+      {
+        "name": "Bob Smith",
+        "role": "engineering-manager",
+        "approved_at": "2026-02-01T10:00:00Z"
+      }
+    ],
+    "created_at": "2026-02-01T08:00:00Z",
+    "updated_at": "2026-02-01T10:05:00Z",
+    "expires_at": "2026-03-15T00:00:00Z",
+    "status": "active",
+    "audit": [
+      {
+        "timestamp": "2026-02-01T08:00:00Z",
+        "actor": "alice.doe",
+        "action": "created",
+        "details": "Initial accepted risk record created."
+      },
+      {
+        "timestamp": "2026-02-01T10:05:00Z",
+        "actor": "bob.smith",
+        "action": "approved",
+        "details": "Approved for release stage with compensating controls."
+      }
+    ]
+  },
+  {
+    "risk_id": "AR-2025-0999",
+    "title": "Expired accepted risk example",
+    "rationale": "Demonstrates expiry behavior for regression tests.",
+    "owner": "security-governance",
+    "ticket": "SEC-1099",
+    "stage_scope": ["release", "prod"],
+    "environment_scope": ["staging", "prod"],
+    "finding_selector": {
+      "fingerprint": "be5d3f5b372dffe80a5af06ea73abf7ce34605ac9167595228c90ef1867c1902",
+      "domain": "VULNERABILITY",
+      "source_scanner": "trivy",
+      "severity": "CRITICAL"
+    },
+    "effects": [
+      "suppress_from_scoring"
+    ],
+    "allow_warn_in_prod": true,
+    "approvals": [
+      {
+        "name": "Charlie Roe",
+        "role": "security",
+        "approved_at": "2025-11-01T11:00:00Z"
+      }
+    ],
+    "created_at": "2025-11-01T10:00:00Z",
+    "updated_at": "2025-12-01T10:00:00Z",
+    "expires_at": "2026-12-31T00:00:00Z",
+    "status": "active",
+    "audit": [
+      {
+        "timestamp": "2025-11-01T10:00:00Z",
+        "actor": "charlie.roe",
+        "action": "created",
+        "details": "Record created for temporary production exception."
+      },
+      {
+        "timestamp": "2026-01-15T00:00:00Z",
+        "actor": "system",
+        "action": "expired",
+        "details": "Risk expired automatically at expires_at."
+      }
+    ]
+  }
+]

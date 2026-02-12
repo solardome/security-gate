@@ -195,11 +195,11 @@ func TestReportWriteAffectedInput(t *testing.T) {
 	if got := reportWriteAffectedInput(withErrorCode("DECISION_WRITE_FAILED", errors.New("x"))); got != "decision.json" {
 		t.Fatalf("expected decision.json, got %q", got)
 	}
-	if got := reportWriteAffectedInput(withErrorCode("SUMMARY_WRITE_FAILED", errors.New("x"))); got != "summary.md" {
-		t.Fatalf("expected summary.md, got %q", got)
-	}
 	if got := reportWriteAffectedInput(withErrorCode("HTML_WRITE_FAILED", errors.New("x"))); got != "report.html" {
 		t.Fatalf("expected report.html, got %q", got)
+	}
+	if got := reportWriteAffectedInput(withErrorCode("CHECKSUMS_WRITE_FAILED", errors.New("x"))); got != "checksums.sha256" {
+		t.Fatalf("expected checksums.sha256, got %q", got)
 	}
 	if got := reportWriteAffectedInput(errors.New("x")); got != "report_output" {
 		t.Fatalf("expected report_output, got %q", got)
@@ -373,29 +373,8 @@ func TestScanMetadataAndTimestamps(t *testing.T) {
 	}
 }
 
-func TestBuildSummaryAndIssueStatus(t *testing.T) {
+func TestIssueStatus(t *testing.T) {
 	t.Parallel()
-
-	artifact := policy.DecisionArtifact{
-		Decision: policy.PolicyDecision{Status: domain.DecisionWarn, ExitCode: 1},
-		Scoring:  policy.ScoringSummary{ReleaseRisk: 42},
-		Trust:    policy.TrustResult{TrustScore: 70},
-		Findings: policy.FindingsSummary{
-			TotalCount:      3,
-			HardStopCount:   1,
-			ConsideredCount: 1,
-			Items: []scoring.ScoredFinding{
-				{Finding: trivy.CanonicalFinding{FindingID: "a", Fingerprint: "fa", Domain: "SECRET", Severity: "HIGH"}, RiskScore: 100, HardStop: true},
-				{Finding: trivy.CanonicalFinding{FindingID: "b", Fingerprint: "fb", Domain: "VULNERABILITY", Severity: "HIGH"}, RiskScore: 80, SuppressedByAcceptedRisk: true},
-				{Finding: trivy.CanonicalFinding{FindingID: "c", Fingerprint: "fc", Domain: "CONFIG", Severity: "LOW"}, RiskScore: 20},
-			},
-		},
-		RecommendedSteps: []string{"FIX_VULN"},
-	}
-	summary := buildSummary(artifact, []string{"input/a.json"})
-	if summary == "" || !contains(summary, "FIX_VULN") || !contains(summary, "SUPPRESSED") {
-		t.Fatalf("summary missing expected content")
-	}
 
 	if got := issueStatus(scoring.ScoredFinding{HardStop: true}); got != string(domain.DecisionBlock) {
 		t.Fatalf("expected BLOCK status, got %q", got)
@@ -422,14 +401,21 @@ func TestWriteReportsAndFatalBuilders(t *testing.T) {
 		GeneratedAt:      now.Format(time.RFC3339),
 		DecisionArtifact: artifact,
 	}
-	decisionPath, summaryPath, htmlPath, err := writeReports(now, tmp, report, artifact, []string{"input/a.json"}, true)
+	decisionPath, htmlPath, checksumsPath, err := writeReports(now, tmp, report, artifact, []string{"input/a.json"}, true)
 	if err != nil {
 		t.Fatalf("writeReports failed: %v", err)
 	}
-	for _, p := range []string{decisionPath, summaryPath, htmlPath} {
+	for _, p := range []string{decisionPath, htmlPath, checksumsPath} {
 		if _, err := os.Stat(p); err != nil {
 			t.Fatalf("expected file %s: %v", p, err)
 		}
+	}
+	content, err := os.ReadFile(checksumsPath)
+	if err != nil {
+		t.Fatalf("read checksums: %v", err)
+	}
+	if !strings.Contains(string(content), "decision.json") || !strings.Contains(string(content), "report.html") {
+		t.Fatalf("checksums file missing expected entries: %s", string(content))
 	}
 
 	snapshot := buildFatalSnapshot(now, "", policy.StagePR, true, contextPayload{}, "", "", "", nil, nil)
@@ -449,6 +435,25 @@ func TestWriteReportsAndFatalBuilders(t *testing.T) {
 	}
 }
 
-func contains(s, needle string) bool {
-	return strings.Contains(s, needle)
+func TestResolveOutputDirAndRunID(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 2, 12, 12, 0, 0, 0, time.UTC)
+	hashes := map[string]string{"b.json": "h2", "a.json": "h1"}
+	runID1 := buildRunID(policy.StageRelease, "ctx", "pol", "ar", hashes)
+	runID2 := buildRunID(policy.StageRelease, "ctx", "pol", "ar", hashes)
+	if runID1 != runID2 || len(runID1) != 12 {
+		t.Fatalf("run id should be stable and 12 chars, got %q / %q", runID1, runID2)
+	}
+
+	cfg := cliConfig{outputDir: "/tmp/custom", outputDirExplicit: true}
+	if got := resolveOutputDir(cfg, now, policy.StageRelease, "ctx", "pol", "ar", hashes); got != "/tmp/custom" {
+		t.Fatalf("expected explicit output dir, got %q", got)
+	}
+
+	cfg = cliConfig{}
+	got := resolveOutputDir(cfg, now, policy.StageRelease, "ctx", "pol", "ar", hashes)
+	if !strings.HasPrefix(got, filepath.Join(defaultReportsDir, now.Format("20060102-150405")+"-")) {
+		t.Fatalf("unexpected auto output dir format: %q", got)
+	}
 }

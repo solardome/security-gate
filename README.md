@@ -38,7 +38,7 @@ stage, exposure, trust, provenance, and governance. Teams face:
 2) Provide a local context input with pipeline stage, exposure, and trust signals.
 3) Provide policy rules and any accepted risk records.
 4) Run security-gate to ingest, normalize, score, and decide.
-5) Consume decision.json, summary.md, and the exit code in your CI/CD stage.
+5) Consume decision.json, report.html (optional), and the exit code in your CI/CD stage.
 
 ## CLI Flags and Usage
 The binary is non-interactive and is controlled entirely via flags.
@@ -62,9 +62,9 @@ Flag reference:
 | `--context <path>` | No | Path to context JSON. If omitted, defaults are used (`pipeline_stage=pr`, `environment=dev`, `exposure=unknown`, `change_type=unknown`). |
 | `--policy <path>` | No | Path to policy JSON. If omitted, the embedded default policy is used. |
 | `--accepted-risk <path>` | No | Path to accepted risks JSON. If omitted, an empty accepted-risks set is used. |
-| `--output-dir <path>` | No | Directory where reports are written. Default is `reports/<timestamp>`. |
+| `--output-dir <path>` | No | Directory where reports are written. Default is `reports/<timestamp>-<runid>` where `runid` is derived from decision-affecting input hashes. |
 | `--stage <pr\|main\|release\|prod>` | No | Overrides the stage from context for evaluation. |
-| `--report-html` | No | Also emit `report.html` in the output directory (in addition to `decision.json` and `summary.md`). |
+| `--report-html` | No | Also emit `report.html` in the output directory (in addition to `decision.json`). |
 | `--llm <on\|off>` | No | Toggle optional LLM explanation metadata. Default is `off`. |
 
 Exit codes:
@@ -105,7 +105,7 @@ cat testdata/trivy-report-sample.json | security-gate --stdin --output-dir repor
 - **Policy**: apply noise budget (pr only by default), exceptions, accepted risks, and
   the stage decision matrix.
 - **Decision trace**: record a complete, ordered audit trail.
-- **Report**: emit decision.json and summary.md (optional HTML).
+- **Report**: emit decision.json and optional report.html.
 - **LLM (optional)**: generate non-authoritative explanations from sanitized trace data.
 - Evaluation order for governance, scoring, noise budget, policy, and the stage decision matrix is defined canonically in `docs/md/core-decision-engine.md` under **“Canonical Deterministic Evaluation Order (Authoritative)”** and is not re-specified here.
 
@@ -154,8 +154,9 @@ allows WARN in prod.
 ## Outputs and Their Meaning
 - **decision.json (authoritative)**: full decision artifact with trace, scores, policy results,
   and exit code.
-- **summary.md**: human-readable decision summary.
+- **checksums.sha256**: SHA-256 checksums for generated report artifacts (`decision.json` and `report.html` when enabled).
 - **Optional HTML report**: static report for local sharing.
+- **Run log**: JSON log file written to `logs/security-gate-<timestamp>.log`.
 - **Exit codes**: 0=ALLOW, 1=WARN, 2=BLOCK.
 - **Optional LLM explanation**: non-authoritative text linked from decision.json.
 
@@ -171,7 +172,7 @@ MVP:
 - Local-only execution.
 - Trivy JSON ingestion (file path and optional stdin).
 - Deterministic scoring, trust computation, and stage-aware decisions.
-- decision.json and summary.md outputs; optional local LLM explanations.
+- decision.json output and optional report.html; optional local LLM explanations.
 - Noise budget is PR-only in MVP. No noise budget on main/release/prod.
 
 Roadmap (non-exhaustive):
