@@ -209,6 +209,118 @@ func TestDetectScanFormatUsesDeterministicTieBreakOrder(t *testing.T) {
 	}
 }
 
+func TestDetectScanFormatSkipsInvalidHigherPrioritySignatures(t *testing.T) {
+	t.Run("invalid_runs_falls_back_to_snyk", func(t *testing.T) {
+		payload := []byte(`{
+  "runs": {},
+  "vulnerabilities": []
+}`)
+		format, err := detectScanFormat(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if format != "snyk" {
+			t.Fatalf("expected snyk after skipping invalid runs signature, got %s", format)
+		}
+		findings, _, err := parseScan("fallback-snyk.json", payload, "unknown", "unknown")
+		if err != nil {
+			t.Fatalf("expected snyk parse to succeed, got %v", err)
+		}
+		if len(findings) != 0 {
+			t.Fatalf("expected 0 findings, got %d", len(findings))
+		}
+	})
+
+	t.Run("runs_array_without_version_falls_back_to_snyk", func(t *testing.T) {
+		payload := []byte(`{
+  "runs": [],
+  "vulnerabilities": []
+}`)
+		format, err := detectScanFormat(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if format != "snyk" {
+			t.Fatalf("expected snyk when sarif version is missing, got %s", format)
+		}
+		findings, _, err := parseScan("fallback-snyk-missing-version.json", payload, "unknown", "unknown")
+		if err != nil {
+			t.Fatalf("expected snyk parse to succeed, got %v", err)
+		}
+		if len(findings) != 0 {
+			t.Fatalf("expected 0 findings, got %d", len(findings))
+		}
+	})
+
+	t.Run("runs_array_with_non_string_version_falls_back_to_snyk", func(t *testing.T) {
+		payload := []byte(`{
+  "version": 2.1,
+  "runs": [],
+  "vulnerabilities": []
+}`)
+		format, err := detectScanFormat(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if format != "snyk" {
+			t.Fatalf("expected snyk when sarif version is not a string, got %s", format)
+		}
+		findings, _, err := parseScan("fallback-snyk-non-string-version.json", payload, "unknown", "unknown")
+		if err != nil {
+			t.Fatalf("expected snyk parse to succeed, got %v", err)
+		}
+		if len(findings) != 0 {
+			t.Fatalf("expected 0 findings, got %d", len(findings))
+		}
+	})
+
+	t.Run("invalid_results_falls_back_to_checkmarx", func(t *testing.T) {
+		payload := []byte(`{
+  "Results": {},
+  "scanResults": []
+}`)
+		format, err := detectScanFormat(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if format != "checkmarx" {
+			t.Fatalf("expected checkmarx after skipping invalid Results signature, got %s", format)
+		}
+		findings, _, err := parseScan("fallback-checkmarx.json", payload, "unknown", "unknown")
+		if err != nil {
+			t.Fatalf("expected checkmarx parse to succeed, got %v", err)
+		}
+		if len(findings) != 0 {
+			t.Fatalf("expected 0 findings, got %d", len(findings))
+		}
+	})
+}
+
+func TestDetectScanFormatUsesDeterministicTieBreakAcrossAllValidSignatures(t *testing.T) {
+	payload := []byte(`{
+  "version": "2.1.0",
+  "runs": [],
+  "Results": [],
+  "scanResults": [],
+  "vulnerabilities": [],
+  "issues": []
+}`)
+	format, err := detectScanFormat(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if format != "sarif" {
+		t.Fatalf("expected sarif due deterministic precedence, got %s", format)
+	}
+	findings, _, err := parseScan("ambiguous-all.json", payload, "unknown", "unknown")
+	if err != nil {
+		t.Fatalf("expected parse to follow sarif route, got %v", err)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("expected 0 findings, got %d", len(findings))
+	}
+}
+
 func TestParseScanRejectsInvalidVulnerabilitiesType(t *testing.T) {
 	payload := []byte(`{
   "vulnerabilities":{"id":"GENERIC-1","severity":"high"}

@@ -1,0 +1,106 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "snyk-code",
+          "semanticVersion": "1.1290.0",
+          "rules": [
+            {
+              "id": "CVE-2024-1111",
+              "shortDescription": {
+                "text": "OpenSSL vulnerability"
+              },
+              "fullDescription": {
+                "text": "Needs upstream patch"
+              },
+              "helpUri": "https://example.local/CVE-2024-1111",
+              "properties": {
+                "category": "vuln",
+                "cwe": "CWE-79"
+              }
+            },
+            {
+              "id": "CVE-2024-2222",
+              "shortDescription": {
+                "text": "Zlib vulnerability"
+              },
+              "fullDescription": {
+                "text": "Pending patch"
+              },
+              "helpUri": "https://example.local/CVE-2024-2222",
+              "properties": {
+                "category": "vuln",
+                "cwe": "CWE-20"
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "endTimeUtc": "2026-02-19T12:00:00Z"
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "CVE-2024-1111",
+          "level": "error",
+          "message": {
+            "text": "OpenSSL vulnerability"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "payment-api"
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "primaryLocationLineHash": "sarif-1111"
+          },
+          "properties": {
+            "component": "openssl",
+            "target_ref": "registry.local/payment-api@sha256:8c6d",
+            "domain_id": "VULN_GENERIC",
+            "severity": "high",
+            "confidence": "high",
+            "exploitMaturity": "known_exploited",
+            "reachability": "reachable"
+          }
+        },
+        {
+          "ruleId": "CVE-2024-2222",
+          "level": "note",
+          "message": {
+            "text": "Zlib vulnerability"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "payment-api"
+                }
+              }
+            }
+          ],
+          "fingerprints": {
+            "primaryLocationLineHash": "sarif-2222"
+          },
+          "properties": {
+            "component": "zlib",
+            "target_ref": "registry.local/payment-api@sha256:8c6d",
+            "domain_id": "VULN_GENERIC",
+            "severity": "low",
+            "confidence": "medium",
+            "exploitMaturity": "none",
+            "reachability": "potentially_reachable"
+          }
+        }
+      ]
+    }
+  ]
+}

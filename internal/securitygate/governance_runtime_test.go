@@ -378,6 +378,7 @@ func TestRunAcceptsMinimalScannerEnvelopesWithoutParseFailure(t *testing.T) {
 		payload string
 	}{
 		{name: "snyk_minimal", payload: `{"vulnerabilities":[]}`},
+		{name: "snyk_with_runs_array_missing_sarif_version", payload: `{"runs":[],"vulnerabilities":[]}`},
 		{name: "checkmarx_minimal", payload: `{"scanResults":[]}`},
 		{name: "sonar_minimal", payload: `{"issues":[]}`},
 	}

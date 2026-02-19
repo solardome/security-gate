@@ -1,0 +1,25 @@
+schema_version: "1.0"
+records:
+  - id: AR-2026-0007
+    status: active
+    owner: payments-platform
+    approvers: [sec-lead]
+    ticket: SEC-991
+    rationale: Temporary acceptance pending vendor patch
+    scope:
+      type: cve
+      value: CVE-2024-1111
+      scanner: trivy
+      repository: "*"
+      branch_types: [main, release]
+      stages: [merge, release]
+    constraints:
+      max_severity: high
+      environments: [ci]
+    timeline:
+      created_at: "2026-01-01T00:00:00Z"
+      expires_at: "2099-01-01T00:00:00Z"
+      sla_days: 365
+    metadata:
+      created_by: alice
+      reviewed_by: sec-lead

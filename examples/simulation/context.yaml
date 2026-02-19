@@ -1,0 +1,13 @@
+branch_type: "main"
+pipeline_stage: "merge"
+environment: "ci"
+repo_criticality: "high"
+exposure: "internet"
+change_type: "security_sensitive"
+scanner:
+  name: "trivy"
+  version: "0.50.0"
+provenance:
+  artifact_signed: "yes"
+  level: "verified"
+  build_context_integrity: "verified"

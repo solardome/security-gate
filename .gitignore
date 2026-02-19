@@ -45,5 +45,5 @@ go.work.sum
 
 /logs/
 
-# Local simulation fixtures and generated artifacts
-/examples/
+# Local simulation generated artifacts
+/examples/simulation/out/

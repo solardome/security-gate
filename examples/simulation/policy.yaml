@@ -1,0 +1,65 @@
+schema_version: "1.0"
+policy_id: "enterprise-profile-v1"
+policy_name: "Enterprise profile"
+defaults:
+  enforce_offline_only: true
+  llm_enabled: false
+  scan_freshness_hours: 24
+  unknown_signal_mode: tighten
+  decision_trace_verbosity: normal
+stage_overrides:
+  pr:
+    warn_floor: 45
+    block_floor: 75
+  merge:
+    warn_floor: 35
+    block_floor: 65
+  release:
+    warn_floor: 25
+    block_floor: 50
+  deploy:
+    warn_floor: 15
+    block_floor: 35
+trust_tightening:
+  enabled: true
+  release_warn_if_trust_below: 40
+  deploy_block_if_trust_below: 25
+  additional_risk_penalties:
+    trust_60_79: 5
+    trust_40_59: 10
+    trust_20_39: 15
+    trust_0_19: 20
+domain_overrides:
+  additional_hard_stops: []
+  severity_boosts:
+    - domain_id: SUPPLY_CHAIN_DRIFT
+      add_points: 10
+      stages: [merge, release, deploy]
+noise_budget:
+  enabled: true
+  stage_limits:
+    pr: 30
+    merge: 50
+  suppress_below_severity: medium
+exception_rules:
+  require_security_approval:
+    release_critical: true
+    deploy_high_or_above: true
+  allow_scope_types: [finding_id, cve, component]
+  security_approver_ids: [sec-lead]
+  security_approver_groups: [security]
+rules:
+  - rule_id: main-merge-security-sensitive
+    enabled: true
+    when:
+      stages: [merge]
+      branch_types: [main]
+      environments: [ci]
+      repo_criticality: [high, mission_critical, unknown]
+      exposure: [internet, internal, unknown]
+      change_type: [security_sensitive, infra_or_supply_chain]
+    then:
+      add_risk_points: 6
+      min_decision: WARN
+      require_trust_at_least: 50
+      add_recommended_step_ids: [REFRESH_SCANS]

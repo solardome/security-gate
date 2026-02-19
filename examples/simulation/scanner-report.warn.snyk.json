@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-02-19T14:00:00Z",
+  "projectName": "registry.local/payment-api@sha256:8c6d",
+  "displayTargetFile": "package.json",
+  "vulnerabilities": [
+    {
+      "id": "SNYK-JS-LODASH-567746",
+      "title": "Prototype Pollution",
+      "severity": "high",
+      "packageName": "lodash",
+      "version": "4.17.20",
+      "from": ["payment-api", "lodash@4.17.20"],
+      "description": "Pending upstream patch",
+      "identifiers": {
+        "CVE": ["CVE-2024-1111"],
+        "CWE": ["CWE-1321"]
+      },
+      "links": [
+        {
+          "url": "https://example.local/CVE-2024-1111"
+        }
+      ],
+      "confidence": "high",
+      "exploitMaturity": "known_exploited",
+      "reachability": "reachable"
+    }
+  ]
+}

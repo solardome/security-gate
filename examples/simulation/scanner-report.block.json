@@ -1,0 +1,24 @@
+{
+  "ArtifactName": "registry.local/payment-api@sha256:8c6d",
+  "Results": [
+    {
+      "Target": "payment-api",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-3333",
+          "PkgName": "secrets-file",
+          "InstalledVersion": "N/A",
+          "Severity": "LOW",
+          "Title": "Secret detected in production path",
+          "Description": "Hard-stop domain simulation",
+          "PrimaryURL": "https://example.local/secret",
+          "DomainID": "HS_SECRET_IN_PROD_PATH",
+          "Category": "secret",
+          "Confidence": "high",
+          "ExploitMaturity": "none",
+          "Reachability": "reachable"
+        }
+      ]
+    }
+  ]
+}

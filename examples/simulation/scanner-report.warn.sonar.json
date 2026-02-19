@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-02-19T16:00:00Z",
+  "projectKey": "registry.local/payment-api@sha256:8c6d",
+  "rules": [
+    {
+      "id": "sql-injection",
+      "name": "SQL injection",
+      "description": "Unsanitized SQL query",
+      "engineId": "sonar-security",
+      "severity": "CRITICAL",
+      "type": "VULNERABILITY",
+      "helpUri": "https://example.local/sonar/sql"
+    }
+  ],
+  "issues": [
+    {
+      "ruleId": "sql-injection",
+      "type": "VULNERABILITY",
+      "primaryLocation": {
+        "message": "User input reaches SQL sink",
+        "filePath": "src/payment/repository.go",
+        "textRange": {
+          "startLine": 42
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "ArtifactName": "registry.local/payment-api@sha256:8c6d",
+  "Results": [
+    {
+      "Target": "payment-api",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-1111",
+          "PkgName": "openssl",
+          "InstalledVersion": "1.1.1",
+          "Severity": "HIGH",
+          "Title": "OpenSSL vulnerability",
+          "Description": "Needs upstream patch",
+          "PrimaryURL": "https://example.local/CVE-2024-1111",
+          "DomainID": "VULN_GENERIC",
+          "Category": "vuln",
+          "Confidence": "high",
+          "ExploitMaturity": "known_exploited",
+          "Reachability": "reachable"
+        },
+        {
+          "VulnerabilityID": "CVE-2024-2222",
+          "PkgName": "zlib",
+          "InstalledVersion": "1.2.11",
+          "Severity": "LOW",
+          "Title": "Zlib vulnerability",
+          "Description": "Pending patch",
+          "PrimaryURL": "https://example.local/CVE-2024-2222",
+          "DomainID": "VULN_GENERIC",
+          "Category": "vuln",
+          "Confidence": "medium",
+          "ExploitMaturity": "none",
+          "Reachability": "potentially_reachable"
+        }
+      ]
+    }
+  ]
+}

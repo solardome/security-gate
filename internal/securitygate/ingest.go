@@ -66,13 +66,19 @@ func detectScanFormat(payload []byte) (string, error) {
 	}
 	// Deterministic format precedence for ambiguous payloads:
 	// SARIF -> Trivy -> Checkmarx -> Snyk -> Sonar.
+	// Each detector is key+JSON-type based (minimal contract), while
+	// adapter-level validation enforces stricter schema requirements.
 	// This tie-break order is fixed to keep output stable across runs.
 	if _, ok := root["runs"]; ok {
 		// Strict SARIF version validation is enforced inside the adapter.
-		return "sarif", nil
+		if looksLikeSARIF(root) {
+			return "sarif", nil
+		}
 	}
 	if _, ok := root["Results"]; ok {
-		return "trivy", nil
+		if looksLikeTrivy(root) {
+			return "trivy", nil
+		}
 	}
 	if _, ok := root["scanResults"]; ok {
 		if looksLikeCheckmarx(root) {
@@ -95,6 +101,14 @@ func detectScanFormat(payload []byte) (string, error) {
 	return "", errors.New("unsupported scan format: expected Trivy JSON, SARIF 2.1.0, Snyk JSON, Checkmarx JSON v2, or Sonar Generic Issues JSON")
 }
 
+func looksLikeSARIF(root map[string]json.RawMessage) bool {
+	return hasTopLevelArray(root, "runs") && hasTopLevelString(root, "version")
+}
+
+func looksLikeTrivy(root map[string]json.RawMessage) bool {
+	return hasTopLevelArray(root, "Results")
+}
+
 func looksLikeSnyk(root map[string]json.RawMessage) bool {
 	return hasTopLevelArray(root, "vulnerabilities")
 }
@@ -114,6 +128,18 @@ func hasTopLevelArray(root map[string]json.RawMessage, key string) bool {
 	}
 	var arr []json.RawMessage
 	if err := json.Unmarshal(raw, &arr); err != nil {
+		return false
+	}
+	return true
+}
+
+func hasTopLevelString(root map[string]json.RawMessage, key string) bool {
+	raw, ok := root[key]
+	if !ok {
+		return false
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
 		return false
 	}
 	return true

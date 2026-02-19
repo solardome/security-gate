@@ -1,0 +1,22 @@
+{
+  "reportType": "json-v2",
+  "scanInfo": {
+    "projectName": "registry.local/payment-api@sha256:8c6d",
+    "finishedAt": "2026-02-19T15:00:00Z"
+  },
+  "scanResults": [
+    {
+      "queryId": 101,
+      "queryName": "SQL Injection",
+      "severity": "High",
+      "state": "Confirmed",
+      "type": "vulnerability",
+      "similarityId": "cx-sim-101",
+      "filePath": "src/payment/repository.go",
+      "component": "sql-driver",
+      "cwe": "CWE-89",
+      "description": "Tainted input reaches SQL sink",
+      "references": ["https://example.local/CWE-89"]
+    }
+  ]
+}
