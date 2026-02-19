@@ -7,6 +7,7 @@
 - [Why security-gate](#why-security-gate)
 - [Project Status](#project-status)
 - [Key Features](#key-features)
+- [Supported Scanners](#supported-scanners)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -63,6 +64,16 @@ Active development. Core contracts are implemented and validated by unit tests, 
 - Strict YAML validation for context/policy/accepted-risk (unknown fields, duplicate keys, missing required fields)
 - Authoritative machine output (`report.json`) + derived human report (`report.html`)
 - Artifact integrity outputs (`checksums.sha256`) and structured run logs (`security-gate.run.log`)
+
+## Supported Scanners
+
+`security-gate` currently supports these scanner inputs via `--scan` (JSON only):
+
+- Trivy JSON (`Results`)
+- SARIF 2.1.0 JSON (`version`, `runs`)
+- Snyk vulnerability JSON (`vulnerabilities`)
+- Checkmarx JSON v2 (`scanResults`, optional `reportType=json-v2`)
+- Sonar Generic Issues JSON (`issues`)
 
 ## Requirements
 
