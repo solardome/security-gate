@@ -69,7 +69,7 @@ Schema validation currently lives in `internal/securitygate/yaml_schema.go`.
 - Authoritative specs: `docs/md/`
 - Single-page docs: `docs/html/security-gate.html`
 - Simulation inputs/outputs: `examples/simulation/`
-- Simulation runner: `scripts/simulate.sh`
+- Simulation runner: `examples/simulation/simulate.sh`
 
 ## Development Workflow
 
@@ -78,7 +78,7 @@ Schema validation currently lives in `internal/securitygate/yaml_schema.go`.
 3. Add/adjust unit tests for behavior changes.
 4. Run full tests: `go test ./...`
 5. Run race tests: `GOTOOLCHAIN=go1.25.4 go test -race ./...`
-6. Run simulation: `./scripts/simulate.sh`
+6. Run simulation: `./examples/simulation/simulate.sh`
 7. If behavior contract changed, update docs in the same PR.
 
 ## Testing Expectations

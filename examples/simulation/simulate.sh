@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT_DIR="${ROOT_DIR}/examples/simulation/out"
 mkdir -p "$OUT_DIR"
 BINARY="$(mktemp "${TMPDIR:-/tmp}/security-gate.XXXXXX")"
 trap 'rm -f "$BINARY"' EXIT
-go build -o "$BINARY" ./cmd/security-gate
+(cd "$ROOT_DIR" && go build -o "$BINARY" ./cmd/security-gate)
 
 run_case() {
   local case_name="$1"

@@ -103,7 +103,7 @@ go run ./cmd/security-gate --help
 Run the included deterministic simulation:
 
 ```bash
-./scripts/simulate.sh
+./examples/simulation/simulate.sh
 ```
 
 This generates WARN and BLOCK examples under `examples/simulation/out/`.
@@ -328,7 +328,7 @@ Supporting docs:
 - Scoring: `internal/scoring/`
 - Policy rules: `internal/policy/`
 - Reporting: `internal/report/`
-- Simulation: `examples/simulation/` and `scripts/simulate.sh`
+- Simulation: `examples/simulation/` and `examples/simulation/simulate.sh`
 
 ## Development and Validation
 
@@ -337,7 +337,7 @@ Run required checks:
 ```bash
 go test ./...
 GOTOOLCHAIN=go1.25.4 go test -race ./...
-./scripts/simulate.sh
+./examples/simulation/simulate.sh
 ```
 
 Expected simulation behavior:

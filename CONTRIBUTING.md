@@ -7,7 +7,7 @@ Thanks for contributing to `security-gate`.
 ```bash
 go test ./...
 GOTOOLCHAIN=go1.25.4 go test -race ./...
-./scripts/simulate.sh
+./examples/simulation/simulate.sh
 ```
 
 ## Contribution Rules
@@ -24,7 +24,7 @@ GOTOOLCHAIN=go1.25.4 go test -race ./...
 - [ ] Behavior changes include tests.
 - [ ] `go test ./...` passes.
 - [ ] `GOTOOLCHAIN=go1.25.4 go test -race ./...` passes.
-- [ ] `./scripts/simulate.sh` passes.
+- [ ] `./examples/simulation/simulate.sh` passes.
 - [ ] Docs updated when contracts change.
 
 ## Commit Messages
