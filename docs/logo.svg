@@ -1,152 +1,132 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 140" width="520" height="140">
   <defs>
-    <!-- Dark background gradient -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0a0f1a"/>
-      <stop offset="100%" style="stop-color:#0d1524"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080d18"/>
+      <stop offset="100%" stop-color="#0c1628"/>
     </linearGradient>
 
-    <!-- Shield gradient -->
-    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#1e3a5f"/>
-      <stop offset="100%" style="stop-color:#0f2040"/>
+    <linearGradient id="shieldFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#162d50"/>
+      <stop offset="100%" stop-color="#0a1a32"/>
     </linearGradient>
 
-    <!-- Green allow glow -->
-    <filter id="glowGreen" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <linearGradient id="scanBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00d4ff" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#00d4ff" stop-opacity="0.6"/>
+      <stop offset="60%" stop-color="#00d4ff" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="subtleGlow">
+      <feGaussianBlur stdDeviation="1.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-
-    <!-- Gate bar gradient -->
-    <linearGradient id="barGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#00e5ff;stop-opacity:0"/>
-      <stop offset="30%" style="stop-color:#00e5ff;stop-opacity:1"/>
-      <stop offset="70%" style="stop-color:#00e5ff;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#00e5ff;stop-opacity:0"/>
-    </linearGradient>
-
-    <!-- Clip for shield -->
-    <clipPath id="shieldClip">
-      <path d="M 40 18 L 78 18 L 78 58 Q 78 80 59 90 Q 40 80 40 58 Z"/>
-    </clipPath>
-
-    <!-- Scanline pattern -->
-    <pattern id="scanlines" x="0" y="0" width="1" height="3" patternUnits="userSpaceOnUse">
-      <rect width="1" height="1" fill="rgba(0,229,255,0.03)"/>
-    </pattern>
   </defs>
 
   <!-- Background -->
-  <rect width="480" height="160" fill="url(#bgGrad)" rx="10"/>
-  <rect width="480" height="160" fill="url(#scanlines)" rx="10" opacity="0.5"/>
+  <rect width="520" height="140" rx="8" fill="url(#bg)"/>
 
-  <!-- Subtle grid lines -->
-  <g stroke="rgba(0,229,255,0.05)" stroke-width="0.5">
-    <line x1="0" y1="40" x2="480" y2="40"/>
-    <line x1="0" y1="80" x2="480" y2="80"/>
-    <line x1="0" y1="120" x2="480" y2="120"/>
-    <line x1="120" y1="0" x2="120" y2="160"/>
-    <line x1="240" y1="0" x2="240" y2="160"/>
-    <line x1="360" y1="0" x2="360" y2="160"/>
+  <!-- Subtle grid -->
+  <g stroke="#00d4ff" stroke-width="0.4" opacity="0.06">
+    <line x1="0" y1="35" x2="520" y2="35"/>
+    <line x1="0" y1="70" x2="520" y2="70"/>
+    <line x1="0" y1="105" x2="520" y2="105"/>
+    <line x1="130" y1="0" x2="130" y2="140"/>
+    <line x1="260" y1="0" x2="260" y2="140"/>
+    <line x1="390" y1="0" x2="390" y2="140"/>
   </g>
 
-  <!-- === SHIELD ICON === -->
-  <!-- Shield outer glow -->
-  <path d="M 36 14 L 82 14 L 82 62 Q 82 88 59 100 Q 36 88 36 62 Z"
-        fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.3"/>
+  <!-- Corner brackets -->
+  <g stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.4">
+    <polyline points="5,18 5,5 18,5"/>
+    <polyline points="502,5 515,5 515,18"/>
+    <polyline points="5,122 5,135 18,135"/>
+    <polyline points="502,135 515,135 515,122"/>
+  </g>
+
+  <!-- SHIELD outer glow ring -->
+  <path d="M34,15 L84,15 L84,68 Q84,96 59,108 Q34,96 34,68 Z"
+        fill="none" stroke="#00d4ff" stroke-width="1" opacity="0.2"/>
 
   <!-- Shield body -->
-  <path d="M 40 18 L 78 18 L 78 62 Q 78 84 59 95 Q 40 84 40 62 Z"
-        fill="url(#shieldGrad)" stroke="#1a4a7a" stroke-width="1.5"/>
+  <path d="M38,19 L80,19 L80,68 Q80,92 59,103 Q38,92 38,68 Z"
+        fill="url(#shieldFill)" stroke="#1c4272" stroke-width="1.5"/>
 
-  <!-- Shield inner border accent -->
-  <path d="M 44 22 L 74 22 L 74 62 Q 74 80 59 90 Q 44 80 44 62 Z"
-        fill="none" stroke="rgba(0,229,255,0.2)" stroke-width="0.8"/>
-
-  <!-- Gate bars inside shield -->
-  <!-- Top bar (horizontal gate beam) -->
-  <rect x="48" y="40" width="22" height="3.5" rx="1.5" fill="#00e5ff" opacity="0.9"/>
+  <!-- Inner accent line -->
+  <path d="M43,23 L75,23 L75,68 Q75,87 59,97 Q43,87 43,68 Z"
+        fill="none" stroke="#00d4ff" stroke-width="0.6" opacity="0.25"/>
 
   <!-- Gate post left -->
-  <rect x="48" y="32" width="3" height="26" rx="1" fill="#3a7aaa" opacity="0.9"/>
+  <rect x="46" y="38" width="3.5" height="28" rx="1.5" fill="#2a6090"/>
   <!-- Gate post right -->
-  <rect x="67" y="32" width="3" height="26" rx="1" fill="#3a7aaa" opacity="0.9"/>
+  <rect x="68" y="38" width="3.5" height="28" rx="1.5" fill="#2a6090"/>
+  <!-- Ground bar -->
+  <rect x="44" y="64" width="30" height="2.5" rx="1" fill="#1e4d72" opacity="0.8"/>
 
-  <!-- Gate arm (horizontal, lifted = ALLOW) -->
-  <rect x="51" y="36" width="16" height="2.5" rx="1" fill="#00ff88" opacity="0.95"/>
+  <!-- Gate arm raised = ALLOW -->
+  <rect x="49.5" y="34" width="19" height="3" rx="1.5" fill="#00e676" filter="url(#subtleGlow)" opacity="0.95"/>
 
-  <!-- Check mark inside shield -->
-  <polyline points="52,58 57,64 68,50" fill="none" stroke="#00ff88" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  <!-- Lock body -->
+  <rect x="53" y="51" width="12" height="9" rx="2" fill="#1a5c9e" stroke="#2a7acf" stroke-width="0.8"/>
+  <!-- Lock shackle -->
+  <path d="M55.5,51 Q55.5,46 59,46 Q62.5,46 62.5,51" fill="none" stroke="#2a7acf" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Keyhole -->
+  <circle cx="59" cy="56" r="1.5" fill="#00d4ff" opacity="0.7"/>
 
-  <!-- Shield top accent highlight -->
-  <path d="M 44 18 L 74 18 L 74 24 L 44 24 Z" fill="rgba(255,255,255,0.04)" rx="1"/>
+  <!-- WORDMARK: "security" lighter weight -->
+  <text
+    x="104" y="68"
+    font-family="'Courier New', Courier, monospace"
+    font-size="34"
+    font-weight="400"
+    letter-spacing="1"
+    fill="#c8dff5"
+  >security</text>
 
-  <!-- === MAIN TITLE === -->
-  <!-- "security" word -->
-  <text x="108" y="72"
-        font-family="'Courier New', Courier, monospace"
-        font-size="38"
-        font-weight="700"
-        letter-spacing="-1"
-        fill="#e8f4ff">security</text>
+  <!-- Dash separator -->
+  <text
+    x="336" y="68"
+    font-family="'Courier New', Courier, monospace"
+    font-size="34"
+    fill="#00d4ff"
+    opacity="0.45"
+  >-</text>
 
-  <!-- Hyphen separator with glow -->
-  <text x="108" y="108"
-        font-family="'Courier New', Courier, monospace"
-        font-size="38"
-        font-weight="700"
-        letter-spacing="-1"
-        fill="none"
-        stroke="#00e5ff"
-        stroke-width="0.3">security</text>
+  <!-- "gate" bold cyan -->
+  <text
+    x="352" y="68"
+    font-family="'Courier New', Courier, monospace"
+    font-size="34"
+    font-weight="700"
+    letter-spacing="3"
+    fill="#00d4ff"
+    filter="url(#subtleGlow)"
+  >gate</text>
 
-  <!-- "gate" word with accent color -->
-  <text x="108" y="112"
-        font-family="'Courier New', Courier, monospace"
-        font-size="38"
-        font-weight="700"
-        letter-spacing="2"
-        fill="#00e5ff">gate</text>
+  <!-- Thin rule under wordmark -->
+  <line x1="104" y1="78" x2="460" y2="78" stroke="#00d4ff" stroke-width="0.6" opacity="0.18"/>
 
-  <!-- Horizontal divider line between words -->
-  <line x1="108" y1="118" x2="420" y2="118" stroke="rgba(0,229,255,0.15)" stroke-width="1"/>
+  <!-- STATUS PILLS -->
+  <rect x="104" y="89" width="66" height="19" rx="4" fill="rgba(0,230,118,0.08)" stroke="#00e676" stroke-width="0.8"/>
+  <text x="137" y="103" font-family="'Courier New', monospace" font-size="9.5" font-weight="700" fill="#00e676" text-anchor="middle" letter-spacing="1.5">ALLOW</text>
 
-  <!-- === STATUS BADGES === -->
-  <!-- ALLOW badge -->
-  <rect x="108" y="128" width="62" height="20" rx="3" fill="rgba(0,255,136,0.1)" stroke="#00ff88" stroke-width="1" opacity="0.9"/>
-  <text x="139" y="142" font-family="'Courier New', monospace" font-size="10" font-weight="700" fill="#00ff88" text-anchor="middle" letter-spacing="1">ALLOW</text>
+  <rect x="178" y="89" width="58" height="19" rx="4" fill="rgba(255,179,0,0.08)" stroke="#ffb300" stroke-width="0.8"/>
+  <text x="207" y="103" font-family="'Courier New', monospace" font-size="9.5" font-weight="700" fill="#ffb300" text-anchor="middle" letter-spacing="1.5">WARN</text>
 
-  <!-- WARN badge -->
-  <rect x="178" y="128" width="56" height="20" rx="3" fill="rgba(255,180,0,0.1)" stroke="#ffb400" stroke-width="1" opacity="0.9"/>
-  <text x="206" y="142" font-family="'Courier New', monospace" font-size="10" font-weight="700" fill="#ffb400" text-anchor="middle" letter-spacing="1">WARN</text>
-
-  <!-- BLOCK badge -->
-  <rect x="242" y="128" width="62" height="20" rx="3" fill="rgba(255,60,60,0.1)" stroke="#ff3c3c" stroke-width="1" opacity="0.9"/>
-  <text x="273" y="142" font-family="'Courier New', monospace" font-size="10" font-weight="700" fill="#ff3c3c" text-anchor="middle" letter-spacing="1">BLOCK</text>
+  <rect x="244" y="89" width="64" height="19" rx="4" fill="rgba(255,50,50,0.08)" stroke="#ff4444" stroke-width="0.8"/>
+  <text x="276" y="103" font-family="'Courier New', monospace" font-size="9.5" font-weight="700" fill="#ff4444" text-anchor="middle" letter-spacing="1.5">BLOCK</text>
 
   <!-- Tagline -->
-  <text x="320" y="142"
-        font-family="'Courier New', monospace"
-        font-size="9"
-        fill="rgba(140,180,220,0.5)"
-        letter-spacing="0.5">deterministic · stage-aware · auditable</text>
+  <text x="104" y="125"
+    font-family="'Courier New', monospace"
+    font-size="8.5"
+    fill="#4a7aaa"
+    letter-spacing="0.8"
+  >deterministic · stage-aware · privacy-first CI/CD gate</text>
 
-  <!-- Corner accent marks (terminal style) -->
-  <g stroke="rgba(0,229,255,0.3)" stroke-width="1.5" fill="none">
-    <!-- top-left -->
-    <polyline points="4,14 4,4 14,4"/>
-    <!-- top-right -->
-    <polyline points="466,4 476,4 476,14"/>
-    <!-- bottom-left -->
-    <polyline points="4,146 4,156 14,156"/>
-    <!-- bottom-right -->
-    <polyline points="466,156 476,156 476,146"/>
-  </g>
-
-  <!-- Top scanning line animation -->
-  <rect x="0" y="0" width="480" height="2" rx="1" fill="url(#barGrad)" opacity="0.4">
-    <animate attributeName="y" values="0;158;0" dur="4s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="0.4;0.1;0.4" dur="4s" repeatCount="indefinite"/>
+  <!-- Animated scan line -->
+  <rect x="0" y="0" width="520" height="1.5" rx="1" fill="url(#scanBar)">
+    <animate attributeName="y" values="8;132;8" dur="5s" repeatCount="indefinite" calcMode="ease-in-out"/>
+    <animate attributeName="opacity" values="0.5;0.15;0.5" dur="5s" repeatCount="indefinite"/>
   </rect>
 </svg>
