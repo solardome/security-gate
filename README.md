@@ -1,3 +1,5 @@
+![security-gate logo](docs/logo.svg)
+
 # security-gate
 
 `security-gate` is a local, privacy-first DevSecOps gate that converts scanner outputs into deterministic CI/CD decisions: `ALLOW`, `WARN`, or `BLOCK`.
