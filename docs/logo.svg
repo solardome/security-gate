@@ -85,7 +85,7 @@
 
   <!-- Dash separator -->
   <text
-    x="336" y="68"
+    x="200" y="68"
     font-family="'Courier New', Courier, monospace"
     font-size="34"
     fill="#00d4ff"
@@ -94,7 +94,7 @@
 
   <!-- "gate" bold cyan -->
   <text
-    x="352" y="68"
+    x="220" y="68"
     font-family="'Courier New', Courier, monospace"
     font-size="34"
     font-weight="700"
