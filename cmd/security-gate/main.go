@@ -46,6 +46,10 @@ func main() {
 	flag.StringVar(&checksumsPath, "checksums", "", "Output checksums.sha256 path (default next to out-json)")
 	flag.StringVar(&runLogPath, "run-log", "", "Output run log path (default next to out-json)")
 	flag.BoolVar(&noHTML, "no-html", false, "Disable report.html output")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "security-gate %s\n\nUsage:\n", version)
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	report, err := securitygate.Run(securitygate.Config{
@@ -72,6 +76,6 @@ func main() {
 	if strings.TrimSpace(runLogPath) == "" {
 		runLogPath = securitygate.DefaultRunLogPath(outJSON)
 	}
-	fmt.Printf("decision=%s exit_code=%d overall_risk=%d trust=%d report=%s checksums=%s run_log=%s\n", report.Decision, report.ExitCode, report.Risk.OverallScore, report.Trust.Score, outJSON, checksumsPath, runLogPath)
+	fmt.Printf("version=%s decision=%s exit_code=%d overall_risk=%d trust=%d report=%s checksums=%s run_log=%s\n", version, report.Decision, report.ExitCode, report.Risk.OverallScore, report.Trust.Score, outJSON, checksumsPath, runLogPath)
 	os.Exit(report.ExitCode)
 }
