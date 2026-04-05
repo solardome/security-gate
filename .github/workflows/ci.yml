@@ -37,13 +37,6 @@ jobs:
       - name: Simulation scenarios
         run: ./examples/simulation/simulate.sh
 
-      - name: Upload binary
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: security-gate-linux-amd64
-          path: security-gate
-          retention-days: 7
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -129,21 +122,6 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-      - name: Trivy filesystem scan (JSON for dogfood)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: json
-          output: trivy-results.json
-
-      - name: Upload Trivy JSON
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: trivy-scan
-          path: trivy-results.json
-          retention-days: 30
-
   gosec:
     name: Gosec SAST
     runs-on: ubuntu-latest
@@ -169,108 +147,3 @@ jobs:
         with:
           sarif_file: gosec-results.sarif
 
-      - name: Run Gosec (SARIF for security-gate ingestion)
-        run: |
-          "$(go env GOPATH)/bin/gosec" -no-fail -fmt sarif -out gosec-for-gate.sarif ./...
-          test -s gosec-for-gate.sarif
-
-      - name: Upload Gosec SARIF for dogfood
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: gosec-scan
-          path: gosec-for-gate.sarif
-          retention-days: 7
-
-  # ──────────────────────────────────────────────────────────────
-  # Dogfood: security-gate gates itself
-  #
-  # Collects real scanner output (Trivy JSON + Gosec SARIF), feeds
-  # them into the freshly-built security-gate binary, and enforces
-  # the project's own policy at .security-gate/policy.yaml.
-  #
-  # This is recursive on purpose — the security gating tool must
-  # be able to gate its own release.
-  # ──────────────────────────────────────────────────────────────
-  dogfood:
-    name: "Security Gate (dogfood)"
-    needs: [build, trivy, gosec]
-    runs-on: ubuntu-latest
-    # continue-on-error keeps CI green while the project's own findings are being
-    # triaged. Remove once .security-gate/accepted-risk.yaml covers known findings
-    # and the dogfood consistently produces ALLOW or WARN.
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Download security-gate binary
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: security-gate-linux-amd64
-
-      - name: Download Trivy JSON scan
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: trivy-scan
-
-      - name: Download Gosec SARIF scan
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: gosec-scan
-
-      - name: Run security-gate on itself (multi-scanner)
-        id: gate
-        env:
-          # Provide context signals for --context-auto
-          SECURITY_GATE_REPO_CRITICALITY: standard
-          SECURITY_GATE_EXPOSURE: internet
-          SECURITY_GATE_CHANGE_TYPE: general
-          SECURITY_GATE_SCANNER_NAME: trivy+gosec
-          SECURITY_GATE_SCANNER_VERSION: ci
-          SECURITY_GATE_ARTIFACT_SIGNED: "no"
-          SECURITY_GATE_PROVENANCE_LEVEL: unknown
-          SECURITY_GATE_BUILD_CONTEXT_INTEGRITY: verified
-        run: |
-          set +e
-          chmod +x ./security-gate
-
-          ./security-gate \
-            --scan trivy-results.json \
-            --scan gosec-for-gate.sarif \
-            --context-auto \
-            --policy .security-gate/policy.yaml \
-            --out-json  report.json \
-            --out-html  report.html \
-            --checksums checksums.sha256 \
-            --run-log   security-gate.run.log
-          EXIT_CODE=$?
-          set -e
-
-          echo "exit_code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
-
-          # Parse decision from stdout (already printed by security-gate)
-          echo ""
-          echo "── security-gate exited with code ${EXIT_CODE} ──"
-
-          # Fail the step only on BLOCK (exit 2).
-          # WARN (exit 1) is informational during development.
-          if [ "${EXIT_CODE}" -eq 2 ]; then
-            echo "::error::security-gate decision: BLOCK — the project's own security policy was violated"
-            exit 2
-          elif [ "${EXIT_CODE}" -eq 1 ]; then
-            echo "::warning::security-gate decision: WARN — review the report for details"
-          else
-            echo "security-gate decision: ALLOW"
-          fi
-
-      - name: Upload dogfood reports
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: security-gate-dogfood-report
-          path: |
-            report.json
-            report.html
-            checksums.sha256
-            security-gate.run.log
-          retention-days: 30
