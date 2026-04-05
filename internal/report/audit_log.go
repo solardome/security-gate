@@ -21,10 +21,10 @@ type AuditEvent struct {
 
 func NewAuditLogger(path string) (*AuditLogger, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil && dir != "." {
+	if err := os.MkdirAll(dir, 0o750); err != nil && dir != "." {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644) // #nosec G304 -- log path is a user-supplied CLI argument, intentional
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304 -- log path is a user-supplied CLI argument, intentional
 	if err != nil {
 		return nil, err
 	}

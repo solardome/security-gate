@@ -8,12 +8,12 @@ import (
 
 func WriteJSON(path string, value interface{}) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil && dir != "." {
+	if err := os.MkdirAll(dir, 0o750); err != nil && dir != "." {
 		return err
 	}
 	b, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644) // #nosec G304 -- output path is a user-supplied CLI argument, intentional
+	return os.WriteFile(path, b, 0o600) // #nosec G304 -- output path is a user-supplied CLI argument, intentional
 }

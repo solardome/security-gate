@@ -47,10 +47,10 @@ func WriteChecksums(checksumsPath string, artifactPaths []string) error {
 	}
 
 	dir := filepath.Dir(checksumsPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil && dir != "." {
+	if err := os.MkdirAll(dir, 0o750); err != nil && dir != "." {
 		return err
 	}
-	return os.WriteFile(checksumsPath, []byte(content), 0o644) // #nosec G304 -- output path is a user-supplied CLI argument, intentional
+	return os.WriteFile(checksumsPath, []byte(content), 0o600) // #nosec G304 -- output path is a user-supplied CLI argument, intentional
 }
 
 func fileSHA256(path string) (string, error) {
