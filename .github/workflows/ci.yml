@@ -197,9 +197,9 @@ jobs:
 
       - name: Run security-gate
         env:
-          SECURITY_GATE_REPO_CRITICALITY: standard
+          SECURITY_GATE_REPO_CRITICALITY: high
           SECURITY_GATE_EXPOSURE: internet
-          SECURITY_GATE_CHANGE_TYPE: general
+          SECURITY_GATE_CHANGE_TYPE: application
           SECURITY_GATE_SCANNER_NAME: trivy+gosec
           SECURITY_GATE_SCANNER_VERSION: ci
           SECURITY_GATE_ARTIFACT_SIGNED: "no"
