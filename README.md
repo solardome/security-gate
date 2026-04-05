@@ -1,5 +1,8 @@
 ![security-gate logo](docs/logo.svg)
 
+[![CI](https://github.com/solardome/security-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/solardome/security-gate/actions)
+[![Version](https://img.shields.io/github/v/release/solardome/security-gate)](https://github.com/solardome/security-gate/releases)
+[![License](https://img.shields.io/github/license/solardome/security-gate)](LICENSE)
 
 # security-gate
 
