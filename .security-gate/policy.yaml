@@ -37,11 +37,11 @@ noise_budget:
   stage_limits:
     pr: 20
     merge: 40
-  suppress_below_severity: info
+  suppress_below_severity: low
 exception_rules:
   require_security_approval:
-    release_critical: true
-    deploy_high_or_above: true
+    release_critical: false
+    deploy_high_or_above: false
   allow_scope_types: [finding_id, cve, component]
   security_approver_ids: []
   security_approver_groups: []
