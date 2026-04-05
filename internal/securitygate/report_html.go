@@ -810,7 +810,7 @@ footer {
 	b.WriteString(`<script>(function(){var key='security_gate_theme';var root=document.documentElement;var btn=document.getElementById('theme-toggle');function theme(){return root.getAttribute('data-theme')==='light'?'light':'dark'}function apply(t){root.setAttribute('data-theme',t)}function sync(){if(!btn){return}var t=theme();btn.textContent=t==='dark'?'Light theme':'Dark theme';btn.setAttribute('aria-label',t==='dark'?'Switch to light theme':'Switch to dark theme');btn.setAttribute('aria-pressed',t==='dark'?'true':'false')}sync();if(btn){btn.addEventListener('click',function(){var next=theme()==='dark'?'light':'dark';apply(next);try{localStorage.setItem(key,next)}catch(_){}sync()})}})();</script>`)
 	b.WriteString("</main></body></html>")
 
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(path, []byte(b.String()), 0o644) // #nosec G304 -- output path is a user-supplied CLI argument, intentional
 }
 
 func clampScore(v int) int {

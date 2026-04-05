@@ -81,7 +81,7 @@ func severityAtMost(severity, maxSeverity string) bool {
 }
 
 func fileSHA256(path string) (string, []byte, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- path is a user-supplied CLI argument (scan/policy/context file), intentional
 	if err != nil {
 		return "", nil, err
 	}

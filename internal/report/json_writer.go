@@ -15,5 +15,5 @@ func WriteJSON(path string, value interface{}) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o644) // #nosec G304 -- output path is a user-supplied CLI argument, intentional
 }
