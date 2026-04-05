@@ -147,7 +147,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Gosec
+      - name: Run Gosec (SARIF for GitHub Security tab)
         uses: securego/gosec@master
         with:
           args: -fmt sarif -out gosec-results.sarif ./...
@@ -158,39 +158,104 @@ jobs:
         with:
           sarif_file: gosec-results.sarif
 
+      - name: Run Gosec (SARIF for security-gate ingestion)
+        uses: securego/gosec@master
+        with:
+          args: -fmt sarif -out gosec-for-gate.sarif ./...
+
+      - name: Upload Gosec SARIF for dogfood
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gosec-scan
+          path: gosec-for-gate.sarif
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────
+  # Dogfood: security-gate gates itself
+  #
+  # Collects real scanner output (Trivy JSON + Gosec SARIF), feeds
+  # them into the freshly-built security-gate binary, and enforces
+  # the project's own policy at .security-gate/policy.yaml.
+  #
+  # This is recursive on purpose — the security gating tool must
+  # be able to gate its own release.
+  # ──────────────────────────────────────────────────────────────
   dogfood:
-    name: Dogfood (security-gate on itself)
-    needs: [build, trivy]
+    name: "Security Gate (dogfood)"
+    needs: [build, trivy, gosec]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download binary
+      - name: Download security-gate binary
         uses: actions/download-artifact@v4
         with:
           name: security-gate-linux-amd64
 
-      - name: Download Trivy scan
+      - name: Download Trivy JSON scan
         uses: actions/download-artifact@v4
         with:
           name: trivy-scan
 
-      - name: Run security-gate on its own Trivy scan
+      - name: Download Gosec SARIF scan
+        uses: actions/download-artifact@v4
+        with:
+          name: gosec-scan
+
+      - name: Run security-gate on itself (multi-scanner)
+        id: gate
+        env:
+          # Provide context signals for --context-auto
+          SECURITY_GATE_REPO_CRITICALITY: standard
+          SECURITY_GATE_EXPOSURE: internet
+          SECURITY_GATE_CHANGE_TYPE: general
+          SECURITY_GATE_SCANNER_NAME: trivy+gosec
+          SECURITY_GATE_SCANNER_VERSION: ci
+          SECURITY_GATE_ARTIFACT_SIGNED: "no"
+          SECURITY_GATE_PROVENANCE_LEVEL: unknown
+          SECURITY_GATE_BUILD_CONTEXT_INTEGRITY: verified
         run: |
+          set +e
           chmod +x ./security-gate
+
           ./security-gate \
             --scan trivy-results.json \
+            --scan gosec-for-gate.sarif \
             --context-auto \
-            --policy examples/simulation/policy.yaml \
-            --out-json report.json \
-            --out-html report.html || echo "security-gate exited with code $?"
+            --policy .security-gate/policy.yaml \
+            --out-json  report.json \
+            --out-html  report.html \
+            --checksums checksums.sha256 \
+            --run-log   security-gate.run.log
+          EXIT_CODE=$?
+          set -e
 
-      - name: Upload dogfood report
+          echo "exit_code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+
+          # Parse decision from stdout (already printed by security-gate)
+          echo ""
+          echo "── security-gate exited with code ${EXIT_CODE} ──"
+
+          # Fail the step only on BLOCK (exit 2).
+          # WARN (exit 1) is informational during development.
+          if [ "${EXIT_CODE}" -eq 2 ]; then
+            echo "::error::security-gate decision: BLOCK — the project's own security policy was violated"
+            exit 2
+          elif [ "${EXIT_CODE}" -eq 1 ]; then
+            echo "::warning::security-gate decision: WARN — review the report for details"
+          else
+            echo "security-gate decision: ALLOW"
+          fi
+
+      - name: Upload dogfood reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dogfood-report
+          name: security-gate-dogfood-report
           path: |
             report.json
             report.html
+            checksums.sha256
+            security-gate.run.log
           retention-days: 30
