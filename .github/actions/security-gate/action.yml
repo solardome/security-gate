@@ -1,0 +1,227 @@
+name: 'Security Gate'
+description: 'Run security-gate to produce a deterministic CI/CD gating decision from scanner reports'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  scan:
+    description: 'Glob or comma-separated paths to scanner JSON files (required)'
+    required: true
+  baseline-scan:
+    description: 'Glob or comma-separated paths to baseline scanner JSON files'
+    required: false
+    default: ''
+  new-findings-only:
+    description: 'Score only findings not present in baseline scans (pr/merge only)'
+    required: false
+    default: 'false'
+  policy:
+    description: 'Path to policy YAML'
+    required: false
+    default: '.security-gate/policy.yaml'
+  accepted-risk:
+    description: 'Path to accepted-risk YAML'
+    required: false
+    default: ''
+  context:
+    description: 'Path to context YAML. If omitted, uses --context-auto'
+    required: false
+    default: ''
+  version:
+    description: 'security-gate version to install (e.g. v1.0.0). Default: latest'
+    required: false
+    default: 'latest'
+  fail-on-warn:
+    description: 'If true, the action fails on WARN (exit 1) in addition to BLOCK (exit 2)'
+    required: false
+    default: 'false'
+
+outputs:
+  decision:
+    description: 'Gate decision: ALLOW, WARN, or BLOCK'
+    value: ${{ steps.run.outputs.decision }}
+  exit-code:
+    description: 'security-gate exit code (0, 1, or 2)'
+    value: ${{ steps.run.outputs.exit_code }}
+  risk-score:
+    description: 'Overall risk score (0-100)'
+    value: ${{ steps.run.outputs.risk_score }}
+  trust-score:
+    description: 'Trust score (0-100)'
+    value: ${{ steps.run.outputs.trust_score }}
+  report-json-path:
+    description: 'Path to the generated report.json'
+    value: ${{ steps.run.outputs.report_json_path }}
+  report-html-path:
+    description: 'Path to the generated report.html'
+    value: ${{ steps.run.outputs.report_html_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine version tag
+      id: version
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          TAG=$(gh api repos/solardome/security-gate/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "::error::Could not determine latest release. Specify an explicit version."
+            exit 1
+          fi
+        else
+          TAG="${{ inputs.version }}"
+        fi
+        echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Cache security-gate binary
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/security-gate-bin
+        key: security-gate-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.tag }}
+
+    - name: Install security-gate
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        TAG="${{ steps.version.outputs.tag }}"
+        OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        ARCH="$(uname -m)"
+        case "$ARCH" in
+          x86_64)  ARCH="amd64" ;;
+          aarch64) ARCH="arm64" ;;
+        esac
+        ASSET="security-gate_${OS}_${ARCH}"
+        URL="https://github.com/solardome/security-gate/releases/download/${TAG}/${ASSET}"
+        mkdir -p "${{ runner.temp }}/security-gate-bin"
+        echo "Downloading ${URL}"
+        curl -fsSL -o "${{ runner.temp }}/security-gate-bin/security-gate" "${URL}"
+        chmod +x "${{ runner.temp }}/security-gate-bin/security-gate"
+
+    - name: Run security-gate
+      id: run
+      shell: bash
+      run: |
+        set -uo pipefail
+        SG="${{ runner.temp }}/security-gate-bin/security-gate"
+        REPORT_DIR="${{ runner.temp }}/security-gate-reports"
+        mkdir -p "${REPORT_DIR}"
+
+        # Build --scan flags by expanding globs / comma-separated paths
+        SCAN_ARGS=()
+        IFS=',' read -ra SCAN_INPUTS <<< "${{ inputs.scan }}"
+        for pattern in "${SCAN_INPUTS[@]}"; do
+          pattern="$(echo "$pattern" | xargs)"  # trim whitespace
+          [ -z "$pattern" ] && continue
+          for f in $pattern; do
+            [ -f "$f" ] && SCAN_ARGS+=(--scan "$f")
+          done
+        done
+
+        if [ ${#SCAN_ARGS[@]} -eq 0 ]; then
+          echo "::error::No scan files matched the pattern: ${{ inputs.scan }}"
+          exit 2
+        fi
+
+        # Build --baseline-scan flags
+        BASELINE_ARGS=()
+        if [ -n "${{ inputs.baseline-scan }}" ]; then
+          IFS=',' read -ra BASELINE_INPUTS <<< "${{ inputs.baseline-scan }}"
+          for pattern in "${BASELINE_INPUTS[@]}"; do
+            pattern="$(echo "$pattern" | xargs)"
+            [ -z "$pattern" ] && continue
+            for f in $pattern; do
+              [ -f "$f" ] && BASELINE_ARGS+=(--baseline-scan "$f")
+            done
+          done
+        fi
+
+        # Build optional flags
+        OPTIONAL_ARGS=()
+
+        if [ "${{ inputs.new-findings-only }}" = "true" ]; then
+          OPTIONAL_ARGS+=(--new-findings-only)
+        fi
+
+        if [ -n "${{ inputs.context }}" ]; then
+          OPTIONAL_ARGS+=(--context "${{ inputs.context }}")
+        else
+          OPTIONAL_ARGS+=(--context-auto)
+        fi
+
+        if [ -n "${{ inputs.accepted-risk }}" ]; then
+          OPTIONAL_ARGS+=(--accepted-risk "${{ inputs.accepted-risk }}")
+        fi
+
+        # Run security-gate
+        OUTPUT=$("${SG}" \
+          "${SCAN_ARGS[@]}" \
+          ${BASELINE_ARGS[@]+"${BASELINE_ARGS[@]}"} \
+          --policy "${{ inputs.policy }}" \
+          "${OPTIONAL_ARGS[@]}" \
+          --out-json  "${REPORT_DIR}/report.json" \
+          --out-html  "${REPORT_DIR}/report.html" \
+          --checksums "${REPORT_DIR}/checksums.sha256" \
+          --run-log   "${REPORT_DIR}/security-gate.run.log" \
+          2>&1) || true
+        EXIT_CODE=${PIPESTATUS[0]:-$?}
+
+        echo "${OUTPUT}"
+
+        # Parse stdout line: decision=ALLOW exit_code=0 overall_risk=25 trust=85 ...
+        DECISION=$(echo "${OUTPUT}" | grep -oP 'decision=\K\S+' || echo "UNKNOWN")
+        RISK=$(echo "${OUTPUT}" | grep -oP 'overall_risk=\K\S+' || echo "-1")
+        TRUST=$(echo "${OUTPUT}" | grep -oP 'trust=\K\S+' || echo "-1")
+
+        # Set outputs
+        echo "decision=${DECISION}"           >> "$GITHUB_OUTPUT"
+        echo "exit_code=${EXIT_CODE}"         >> "$GITHUB_OUTPUT"
+        echo "risk_score=${RISK}"             >> "$GITHUB_OUTPUT"
+        echo "trust_score=${TRUST}"           >> "$GITHUB_OUTPUT"
+        echo "report_json_path=${REPORT_DIR}/report.json"  >> "$GITHUB_OUTPUT"
+        echo "report_html_path=${REPORT_DIR}/report.html"  >> "$GITHUB_OUTPUT"
+
+        # Write job summary
+        if [ -f "${REPORT_DIR}/report.json" ]; then
+          {
+            echo "## Security Gate: ${DECISION}"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Decision | **${DECISION}** |"
+            echo "| Risk Score | ${RISK}/100 |"
+            echo "| Trust Score | ${TRUST}/100 |"
+            echo "| Exit Code | ${EXIT_CODE} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        # Decide whether to fail the step
+        if [ "${EXIT_CODE}" -eq 2 ]; then
+          echo "::error::Security gate decision: BLOCK (exit code 2)"
+          exit 2
+        elif [ "${EXIT_CODE}" -eq 1 ]; then
+          if [ "${{ inputs.fail-on-warn }}" = "true" ]; then
+            echo "::warning::Security gate decision: WARN (exit code 1, fail-on-warn enabled)"
+            exit 1
+          else
+            echo "::warning::Security gate decision: WARN (exit code 1, continuing)"
+          fi
+        fi
+
+    - name: Upload reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-gate-reports
+        path: |
+          ${{ runner.temp }}/security-gate-reports/report.json
+          ${{ runner.temp }}/security-gate-reports/report.html
+          ${{ runner.temp }}/security-gate-reports/checksums.sha256
+          ${{ runner.temp }}/security-gate-reports/security-gate.run.log
+        if-no-files-found: ignore
+        retention-days: 90

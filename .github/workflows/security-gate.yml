@@ -1,0 +1,83 @@
+name: Security Gate
+
+on:
+  workflow_call:
+    inputs:
+      scan:
+        description: 'Glob or comma-separated paths to scanner JSON files'
+        required: true
+        type: string
+      baseline-scan:
+        description: 'Glob or comma-separated paths to baseline scanner JSON files'
+        required: false
+        type: string
+        default: ''
+      new-findings-only:
+        description: 'Score only new findings not in baseline'
+        required: false
+        type: boolean
+        default: false
+      policy:
+        description: 'Path to policy YAML'
+        required: false
+        type: string
+        default: '.security-gate/policy.yaml'
+      accepted-risk:
+        description: 'Path to accepted-risk YAML'
+        required: false
+        type: string
+        default: ''
+      context:
+        description: 'Path to context YAML (omit for --context-auto)'
+        required: false
+        type: string
+        default: ''
+      version:
+        description: 'security-gate version to install'
+        required: false
+        type: string
+        default: 'latest'
+      fail-on-warn:
+        description: 'Fail the workflow on WARN decisions'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      decision:
+        description: 'Gate decision'
+        value: ${{ jobs.gate.outputs.decision }}
+      exit-code:
+        description: 'Exit code'
+        value: ${{ jobs.gate.outputs.exit-code }}
+      risk-score:
+        description: 'Risk score'
+        value: ${{ jobs.gate.outputs.risk-score }}
+      trust-score:
+        description: 'Trust score'
+        value: ${{ jobs.gate.outputs.trust-score }}
+
+jobs:
+  gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    outputs:
+      decision: ${{ steps.sg.outputs.decision }}
+      exit-code: ${{ steps.sg.outputs.exit-code }}
+      risk-score: ${{ steps.sg.outputs.risk-score }}
+      trust-score: ${{ steps.sg.outputs.trust-score }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Security Gate
+        id: sg
+        uses: ./.github/actions/security-gate
+        with:
+          scan: ${{ inputs.scan }}
+          baseline-scan: ${{ inputs.baseline-scan }}
+          new-findings-only: ${{ inputs.new-findings-only }}
+          policy: ${{ inputs.policy }}
+          accepted-risk: ${{ inputs.accepted-risk }}
+          context: ${{ inputs.context }}
+          version: ${{ inputs.version }}
+          fail-on-warn: ${{ inputs.fail-on-warn }}
