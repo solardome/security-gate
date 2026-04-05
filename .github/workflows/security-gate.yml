@@ -33,7 +33,7 @@ on:
         type: string
         default: ''
       version:
-        description: 'security-gate version to install'
+        description: 'security-gate release tag to install (pin explicit tag for reproducible CI; "latest" is non-deterministic)'
         required: false
         type: string
         default: 'latest'

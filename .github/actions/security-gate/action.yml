@@ -29,7 +29,7 @@ inputs:
     required: false
     default: ''
   version:
-    description: 'security-gate version to install (e.g. v1.0.0). Default: latest'
+    description: 'security-gate release tag to install (for example v1.0.0). Prefer explicit pinning; "latest" is non-deterministic.'
     required: false
     default: 'latest'
   fail-on-warn:
@@ -64,7 +64,9 @@ runs:
       id: version
       shell: bash
       run: |
+        set -euo pipefail
         if [ "${{ inputs.version }}" = "latest" ]; then
+          echo "::warning::inputs.version=latest is non-deterministic. Pin an explicit release tag for reproducible CI."
           TAG=$(gh api repos/solardome/security-gate/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
           if [ -z "$TAG" ]; then
             echo "::error::Could not determine latest release. Specify an explicit version."
@@ -72,6 +74,11 @@ runs:
           fi
         else
           TAG="${{ inputs.version }}"
+        fi
+        TAG="$(echo "${TAG}" | xargs)"
+        if [ -z "${TAG}" ]; then
+          echo "::error::Resolved security-gate tag is empty."
+          exit 1
         fi
         echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
       env:
