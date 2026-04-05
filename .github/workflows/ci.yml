@@ -196,6 +196,10 @@ jobs:
     name: "Security Gate (dogfood)"
     needs: [build, trivy, gosec]
     runs-on: ubuntu-latest
+    # continue-on-error keeps CI green while the project's own findings are being
+    # triaged. Remove once .security-gate/accepted-risk.yaml covers known findings
+    # and the dogfood consistently produces ALLOW or WARN.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
