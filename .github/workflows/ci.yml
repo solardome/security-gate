@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -240,57 +239,3 @@ jobs:
             gate.run.log
           retention-days: 30
 
-  # ── 5. Release ─────────────────────────────────────────────────
-  # Only runs on version tags. Requires all quality and security
-  # gates to pass. Builds multi-platform binaries and publishes
-  # a GitHub release.
-  release:
-    name: Release
-    needs: [gate, lint, govulncheck, codeql]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: '1.25'
-
-      - name: Build release binaries
-        run: |
-          VERSION="${GITHUB_REF_NAME}"
-          mkdir -p dist
-
-          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
-          for PLATFORM in $PLATFORMS; do
-            OS="${PLATFORM%/*}"
-            ARCH="${PLATFORM#*/}"
-            NAME="security-gate_${OS}_${ARCH}"
-            [ "$OS" = "windows" ] && NAME="${NAME}.exe"
-            echo "Building ${NAME}..."
-            GOOS="${OS}" GOARCH="${ARCH}" CGO_ENABLED=0 \
-              go build -trimpath \
-                -ldflags="-s -w -X main.version=${VERSION}" \
-                -o "dist/${NAME}" \
-                ./cmd/security-gate
-          done
-
-          ls -lh dist/
-
-      - name: Download gate report
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: security-gate-report
-          path: dist/
-
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "security-gate ${GITHUB_REF_NAME}" \
-            --generate-notes \
-            dist/*

@@ -7,9 +7,15 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  security-events: write
 
 jobs:
+  # ── 1. Release Please ──────────────────────────────────────────
+  # Opens / updates a release PR on every push to main.
+  # When that PR is merged it creates the tag + an empty GitHub
+  # release, then sets release_created=true so the jobs below run.
   release-please:
+    name: Release Please
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
@@ -19,3 +25,197 @@ jobs:
         id: rp
         with:
           release-type: go
+
+  # ── 2–4. Run only when a release was just created ──────────────
+
+  build:
+    name: Build release binaries
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: '1.25'
+
+      - name: Build multi-platform binaries
+        env:
+          VERSION: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          mkdir -p dist
+          PLATFORMS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
+          for PLATFORM in $PLATFORMS; do
+            OS="${PLATFORM%/*}"
+            ARCH="${PLATFORM#*/}"
+            NAME="security-gate_${OS}_${ARCH}"
+            [ "$OS" = "windows" ] && NAME="${NAME}.exe"
+            echo "Building ${NAME}…"
+            GOOS="${OS}" GOARCH="${ARCH}" CGO_ENABLED=0 \
+              go build -trimpath \
+                -ldflags="-s -w -X main.version=${VERSION}" \
+                -o "dist/${NAME}" \
+                ./cmd/security-gate
+          done
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-binaries
+          path: dist/
+          retention-days: 1
+
+  trivy:
+    name: Trivy Scan
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Trivy scan → SARIF (GitHub Security tab)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy.sarif
+
+      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: trivy.sarif
+
+      - name: Trivy scan → JSON (security-gate input)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: trivy.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-scan-trivy
+          path: trivy.json
+          retention-days: 1
+
+  gosec:
+    name: Gosec SAST
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: '1.25'
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@223e19b8856e00f02cc67804499a83f77e208f3c # v2.25.0
+
+      - name: Gosec scan → SARIF
+        run: |
+          "$(go env GOPATH)/bin/gosec" -no-fail -fmt sarif -out gosec.sarif ./...
+          test -s gosec.sarif
+
+      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: gosec.sarif
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-scan-gosec
+          path: gosec.sarif
+          retention-days: 1
+
+  gate:
+    name: Security Gate
+    needs: [release-please, build, trivy, gosec]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-binaries
+          path: dist/
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-scan-trivy
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-scan-gosec
+
+      - name: Run security-gate
+        env:
+          SECURITY_GATE_REPO_CRITICALITY: high
+          SECURITY_GATE_EXPOSURE: internet
+          SECURITY_GATE_CHANGE_TYPE: application
+          SECURITY_GATE_SCANNER_NAME: trivy+gosec
+          SECURITY_GATE_SCANNER_VERSION: ci
+          SECURITY_GATE_ARTIFACT_SIGNED: "no"
+          SECURITY_GATE_PROVENANCE_LEVEL: unknown
+          SECURITY_GATE_BUILD_CONTEXT_INTEGRITY: verified
+        run: |
+          set +e
+          chmod +x dist/security-gate_linux_amd64
+          dist/security-gate_linux_amd64 \
+            --scan trivy.json \
+            --scan gosec.sarif \
+            --context-auto \
+            --policy .security-gate/policy.yaml \
+            --out-json  gate-report.json \
+            --out-html  gate-report.html \
+            --checksums gate-checksums.sha256 \
+            --run-log   gate.run.log
+          EXIT_CODE=$?
+          set -e
+
+          case "${EXIT_CODE}" in
+            0) echo "Security gate: ALLOW" ;;
+            1) echo "::warning::Security gate: WARN — review report artifact" ;;
+            2) echo "::error::Security gate: BLOCK — release cancelled"; exit 2 ;;
+          esac
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-gate-report
+          path: |
+            gate-report.json
+            gate-report.html
+            gate-checksums.sha256
+            gate.run.log
+          retention-days: 90
+
+  # ── 5. Publish ─────────────────────────────────────────────────
+  # release-please already created the GitHub release (empty).
+  # This job uploads the binaries and gate report to it.
+  publish:
+    name: Publish release assets
+    needs: [release-please, gate]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-binaries
+          path: dist/
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-gate-report
+          path: dist/
+
+      - name: Upload assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: gh release upload "${TAG}" dist/* --clobber
