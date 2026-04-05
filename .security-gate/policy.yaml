@@ -1,0 +1,48 @@
+schema_version: "1.0"
+policy_id: "security-gate-self-scan"
+policy_name: "security-gate project self-scan policy"
+defaults:
+  enforce_offline_only: true
+  llm_enabled: false
+  scan_freshness_hours: 24
+  unknown_signal_mode: tighten
+  decision_trace_verbosity: normal
+stage_overrides:
+  pr:
+    warn_floor: 40
+    block_floor: 70
+  merge:
+    warn_floor: 30
+    block_floor: 60
+  release:
+    warn_floor: 20
+    block_floor: 45
+  deploy:
+    warn_floor: 10
+    block_floor: 30
+trust_tightening:
+  enabled: true
+  release_warn_if_trust_below: 40
+  deploy_block_if_trust_below: 25
+  additional_risk_penalties:
+    trust_60_79: 5
+    trust_40_59: 10
+    trust_20_39: 15
+    trust_0_19: 20
+domain_overrides:
+  additional_hard_stops: []
+  severity_boosts: []
+noise_budget:
+  enabled: true
+  stage_limits:
+    pr: 20
+    merge: 40
+  suppress_below_severity: info
+exception_rules:
+  require_security_approval:
+    release_critical: true
+    deploy_high_or_above: true
+  allow_scope_types: [finding_id, cve, component]
+  security_approver_ids: []
+  security_approver_groups: []
+rules: []

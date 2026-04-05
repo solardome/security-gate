@@ -1,7 +1,6 @@
 package securitygate
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -158,8 +157,5 @@ func TestFallbackFindingIDDifferentInputsDifferentHash(t *testing.T) {
 	id2 := fallbackFindingID(f2)
 	if id1 == id2 {
 		t.Fatal("different findings must produce different fallback IDs")
-	}
-	if !strings.Contains(id1+id2, "") {
-		// Always true; just ensure no panic.
 	}
 }

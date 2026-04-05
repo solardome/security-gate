@@ -23,10 +23,6 @@ func trustScore(ctx Context, pol Policy, findings []UnifiedFinding) TrustResult 
 	}
 }
 
-func trustPenaltyBand(score int, pol Policy) int {
-	return enginescoring.TrustPenaltyBand(score, toScoringPolicy(pol).TrustBands)
-}
-
 func scoreFinding(f UnifiedFinding, ctx Context, pol Policy, stage string) int {
 	return enginescoring.ScoreFinding(toScoringFinding(f), toScoringContext(ctx), toScoringPolicy(pol), stage)
 }
