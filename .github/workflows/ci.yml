@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write  # for CodeQL and SARIF uploads
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.25']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Build
+        run: go build -o security-gate ./cmd/security-gate
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Race detector tests
+        run: go test -race ./...
+
+      - name: Simulation scenarios
+        run: ./examples/simulation/simulate.sh
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-gate-linux-amd64
+          path: security-gate
+          retention-days: 7
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  govulncheck:
+    name: Go Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Build
+        run: go build ./cmd/security-gate
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  trivy:
+    name: Trivy Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan (table)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+
+      - name: Trivy filesystem scan (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Trivy filesystem scan (JSON for dogfood)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: json
+          output: trivy-results.json
+
+      - name: Upload Trivy JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan
+          path: trivy-results.json
+          retention-days: 30
+
+  gosec:
+    name: Gosec SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Gosec
+        uses: securego/gosec@master
+        with:
+          args: -fmt sarif -out gosec-results.sarif ./...
+
+      - name: Upload Gosec SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: gosec-results.sarif
+
+  dogfood:
+    name: Dogfood (security-gate on itself)
+    needs: [build, trivy]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: security-gate-linux-amd64
+
+      - name: Download Trivy scan
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-scan
+
+      - name: Run security-gate on its own Trivy scan
+        run: |
+          chmod +x ./security-gate
+          ./security-gate \
+            --scan trivy-results.json \
+            --context-auto \
+            --policy examples/simulation/policy.yaml \
+            --out-json report.json \
+            --out-html report.html || echo "security-gate exited with code $?"
+
+      - name: Upload dogfood report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dogfood-report
+          path: |
+            report.json
+            report.html
+          retention-days: 30
