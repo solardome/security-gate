@@ -11,12 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: '1.25'
+  GO_VERSION: '1.25.4'
 
 permissions:
-  contents: write        # release-please PR merge + gh release upload
-  pull-requests: write   # release-please PR creation
-  security-events: write # CodeQL and SARIF uploads
+  contents: read
 
 jobs:
   # ── 0. Version metadata ────────────────────────────────────────
@@ -92,7 +90,7 @@ jobs:
       # golangci-lint pre-built binaries are compiled with an older Go toolchain
       # and reject Go 1.25 targets — build from source with the same toolchain.
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 
       - name: Run golangci-lint
         run: golangci-lint run ./...
@@ -108,7 +106,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: Run govulncheck
         run: govulncheck ./...
@@ -116,6 +114,9 @@ jobs:
   codeql:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -136,11 +137,13 @@ jobs:
   trivy:
     name: Trivy Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Pinned to commit hash from 2023 — predates the 2026 compromise.
-      # Commit hashes are immutable so this is safe regardless of tag changes.
+      # Pinned by commit SHA for immutable action sourcing.
       - name: Trivy scan → SARIF (GitHub Security tab)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
@@ -171,6 +174,9 @@ jobs:
   gosec:
     name: Gosec SAST
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -269,6 +275,10 @@ jobs:
     needs: [gate, lint, govulncheck, codeql]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
       tag_name: ${{ steps.rp.outputs.tag_name }}
@@ -325,6 +335,8 @@ jobs:
     needs: [release-please, release-build]
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
