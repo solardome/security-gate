@@ -63,16 +63,15 @@ func TestRunWritesChecksumsAndRunLog(t *testing.T) {
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		var evt struct {
-			Event  string         `json:"event"`
-			Fields map[string]any `json:"fields"`
+			Message string `json:"msg"`
 		}
 		if err := json.Unmarshal(sc.Bytes(), &evt); err != nil {
 			t.Fatalf("invalid run log json line: %v", err)
 		}
-		if evt.Event == "run.start" {
+		if evt.Message == "run.start" {
 			sawStart = true
 		}
-		if evt.Event == "run.complete" {
+		if evt.Message == "run.complete" {
 			sawComplete = true
 		}
 	}

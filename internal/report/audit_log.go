@@ -1,62 +1,20 @@
 package report
 
 import (
-	"encoding/json"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 )
 
-type AuditLogger struct {
-	file *os.File
-	enc  *json.Encoder
-}
-
-type AuditEvent struct {
-	Timestamp string         `json:"timestamp"`
-	Level     string         `json:"level"`
-	Event     string         `json:"event"`
-	Fields    map[string]any `json:"fields,omitempty"`
-}
-
-func NewAuditLogger(path string) (*AuditLogger, error) {
+func NewAuditLogger(path string) (*slog.Logger, io.Closer, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o750); err != nil && dir != "." {
-		return nil, err
+		return nil, nil, err
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304 -- log path is a user-supplied CLI argument, intentional
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &AuditLogger{
-		file: f,
-		enc:  json.NewEncoder(f),
-	}, nil
-}
-
-func (l *AuditLogger) Close() {
-	if l == nil || l.file == nil {
-		return
-	}
-	_ = l.file.Close()
-}
-
-func (l *AuditLogger) Info(event string, fields map[string]any) {
-	l.log("INFO", event, fields)
-}
-
-func (l *AuditLogger) Warn(event string, fields map[string]any) {
-	l.log("WARN", event, fields)
-}
-
-func (l *AuditLogger) log(level, event string, fields map[string]any) {
-	if l == nil || l.enc == nil {
-		return
-	}
-	_ = l.enc.Encode(AuditEvent{
-		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
-		Level:     level,
-		Event:     event,
-		Fields:    fields,
-	})
+	return slog.New(slog.NewJSONHandler(f, nil)), f, nil
 }

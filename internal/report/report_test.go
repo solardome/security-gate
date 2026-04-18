@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -75,44 +76,52 @@ func TestWriteJSONCreatesParentDirectory(t *testing.T) {
 
 func TestAuditLoggerWritesJSONLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "logs", "audit.log")
-	logger, err := NewAuditLogger(path)
+	logger, closer, err := NewAuditLogger(path)
 	if err != nil {
 		t.Fatalf("NewAuditLogger() error = %v", err)
 	}
-	defer logger.Close()
+	defer func() {
+		_ = closer.Close()
+	}()
 
-	logger.Info("scan.started", map[string]any{"count": 1})
-	logger.Warn("scan.failed", map[string]any{"reason": "invalid"})
-	logger.Close()
+	logger.Info("scan.started", "count", 1)
+	logger.Warn("scan.failed", "reason", "invalid")
+	if err := closer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
 
 	lines := strings.Split(strings.TrimSpace(string(mustReadFile(t, path))), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("audit log lines = %d, want 2", len(lines))
 	}
 
-	var infoEvent AuditEvent
+	var infoEvent map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &infoEvent); err != nil {
 		t.Fatalf("json.Unmarshal(info) error = %v", err)
 	}
-	if infoEvent.Level != "INFO" || infoEvent.Event != "scan.started" {
+	if infoEvent[slog.LevelKey] != "INFO" || infoEvent[slog.MessageKey] != "scan.started" {
 		t.Fatalf("info event = %+v", infoEvent)
 	}
-	if infoEvent.Fields["count"] != float64(1) {
-		t.Fatalf("info fields = %#v, want count=1", infoEvent.Fields)
+	if infoEvent["count"] != float64(1) {
+		t.Fatalf("info fields = %#v, want count=1", infoEvent)
 	}
-	if _, err := time.Parse(time.RFC3339Nano, infoEvent.Timestamp); err != nil {
-		t.Fatalf("info timestamp %q parse error = %v", infoEvent.Timestamp, err)
+	timestamp, ok := infoEvent[slog.TimeKey].(string)
+	if !ok {
+		t.Fatalf("info time = %#v, want string", infoEvent[slog.TimeKey])
+	}
+	if _, err := time.Parse(time.RFC3339Nano, timestamp); err != nil {
+		t.Fatalf("info timestamp %q parse error = %v", timestamp, err)
 	}
 
-	var warnEvent AuditEvent
+	var warnEvent map[string]any
 	if err := json.Unmarshal([]byte(lines[1]), &warnEvent); err != nil {
 		t.Fatalf("json.Unmarshal(warn) error = %v", err)
 	}
-	if warnEvent.Level != "WARN" || warnEvent.Event != "scan.failed" {
+	if warnEvent[slog.LevelKey] != "WARN" || warnEvent[slog.MessageKey] != "scan.failed" {
 		t.Fatalf("warn event = %+v", warnEvent)
 	}
-	if warnEvent.Fields["reason"] != "invalid" {
-		t.Fatalf("warn fields = %#v, want reason=invalid", warnEvent.Fields)
+	if warnEvent["reason"] != "invalid" {
+		t.Fatalf("warn fields = %#v, want reason=invalid", warnEvent)
 	}
 }
 

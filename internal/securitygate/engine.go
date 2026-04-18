@@ -29,37 +29,39 @@ func Run(cfg Config) (Report, error) {
 		cfg.RunLogPath = DefaultRunLogPath(cfg.OutJSONPath)
 	}
 
-	log, logErr := newAuditLogger(cfg.RunLogPath)
+	logger, logCloser, logErr := enginereport.NewAuditLogger(cfg.RunLogPath)
 	if logErr == nil {
-		defer log.close()
-		log.info("run.start", map[string]any{
-			"scan_count":          len(cfg.ScanPaths),
-			"baseline_scan_count": len(cfg.BaselineScanPaths),
-			"new_findings_only":   cfg.NewFindingsOnly,
-			"context_path":        cfg.ContextPath,
-			"context_auto":        cfg.AutoContext,
-			"policy_path":         cfg.PolicyPath,
-			"accepted_risk_path":  cfg.AcceptedRiskPath,
-			"out_json":            cfg.OutJSONPath,
-			"out_html":            cfg.OutHTMLPath,
-			"checksums":           cfg.ChecksumsPath,
-		})
+		defer func() {
+			_ = logCloser.Close()
+		}()
+		logger.Info("run.start",
+			"scan_count", len(cfg.ScanPaths),
+			"baseline_scan_count", len(cfg.BaselineScanPaths),
+			"new_findings_only", cfg.NewFindingsOnly,
+			"context_path", cfg.ContextPath,
+			"context_auto", cfg.AutoContext,
+			"policy_path", cfg.PolicyPath,
+			"accepted_risk_path", cfg.AcceptedRiskPath,
+			"out_json", cfg.OutJSONPath,
+			"out_html", cfg.OutHTMLPath,
+			"checksums", cfg.ChecksumsPath,
+		)
 	}
 
 	state := EngineState{Now: time.Now().UTC()}
 	if err := loadInputs(&state, cfg); err != nil {
-		if log != nil {
-			log.warn("run.load_inputs.error", map[string]any{"error": err.Error()})
+		if logger != nil {
+			logger.Warn("run.load_inputs.error", "error", err.Error())
 		}
 		return Report{}, err
 	}
-	if log != nil {
-		log.info("run.load_inputs.ok", map[string]any{
-			"input_count":         len(state.InputDigests),
-			"validation_warnings": len(state.ValidationWarnings),
-			"validation_errors":   len(state.ValidationErrors),
-			"normalized_findings": len(state.Findings),
-		})
+	if logger != nil {
+		logger.Info("run.load_inputs.ok",
+			"input_count", len(state.InputDigests),
+			"validation_warnings", len(state.ValidationWarnings),
+			"validation_errors", len(state.ValidationErrors),
+			"normalized_findings", len(state.Findings),
+		)
 	}
 
 	state.EffectiveStage = effectiveStage(state.Context)
@@ -69,8 +71,8 @@ func Run(cfg Config) (Report, error) {
 		"environment":     state.Context.Environment,
 		"effective_stage": state.EffectiveStage,
 	})
-	if log != nil {
-		log.info("run.stage_mapping.ok", map[string]any{"effective_stage": state.EffectiveStage})
+	if logger != nil {
+		logger.Info("run.stage_mapping.ok", "effective_stage", state.EffectiveStage)
 	}
 	if shouldBlockReleaseOnUnknownSignals(state.Policy, state.EffectiveStage) {
 		unknownErrs := unknownSignalValidationErrors(state.Context, state.ScanDetectedAt)
@@ -145,8 +147,8 @@ func Run(cfg Config) (Report, error) {
 	report := buildReport(state, runID)
 
 	if err := writeReportJSON(cfg.OutJSONPath, report); err != nil {
-		if log != nil {
-			log.warn("run.report_json.error", map[string]any{"error": err.Error()})
+		if logger != nil {
+			logger.Warn("run.report_json.error", "error", err.Error())
 		}
 		return Report{}, err
 	}
@@ -155,8 +157,8 @@ func Run(cfg Config) (Report, error) {
 	if cfg.WriteHTML {
 		if err := writeReportHTML(cfg.OutHTMLPath, report); err != nil {
 			addTrace(&state, "report_html", "error", map[string]any{"error": err.Error()})
-			if log != nil {
-				log.warn("run.report_html.error", map[string]any{"error": err.Error(), "path": cfg.OutHTMLPath})
+			if logger != nil {
+				logger.Warn("run.report_html.error", "error", err.Error(), "path", cfg.OutHTMLPath)
 			}
 		} else {
 			htmlWritten = true
@@ -164,23 +166,23 @@ func Run(cfg Config) (Report, error) {
 		}
 	}
 	if err := writeArtifactChecksums(cfg.ChecksumsPath, artifactPaths); err != nil {
-		if log != nil {
-			log.warn("run.checksums.error", map[string]any{"error": err.Error()})
+		if logger != nil {
+			logger.Warn("run.checksums.error", "error", err.Error())
 		}
 		return Report{}, err
 	}
-	if log != nil {
-		log.info("run.complete", map[string]any{
-			"decision":        report.Decision,
-			"exit_code":       report.ExitCode,
-			"overall_risk":    report.Risk.OverallScore,
-			"trust_score":     report.Trust.Score,
-			"effective_stage": report.EffectiveStage,
-			"report_json":     cfg.OutJSONPath,
-			"report_html":     cfg.OutHTMLPath,
-			"html_written":    htmlWritten,
-			"checksums":       cfg.ChecksumsPath,
-		})
+	if logger != nil {
+		logger.Info("run.complete",
+			"decision", report.Decision,
+			"exit_code", report.ExitCode,
+			"overall_risk", report.Risk.OverallScore,
+			"trust_score", report.Trust.Score,
+			"effective_stage", report.EffectiveStage,
+			"report_json", cfg.OutJSONPath,
+			"report_html", cfg.OutHTMLPath,
+			"html_written", htmlWritten,
+			"checksums", cfg.ChecksumsPath,
+		)
 	}
 	return report, nil
 }
