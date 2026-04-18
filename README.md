@@ -6,7 +6,17 @@
 
 # security-gate
 
-`security-gate` is a local, privacy-first DevSecOps gate that converts scanner outputs into deterministic CI/CD decisions: `ALLOW`, `WARN`, or `BLOCK`.
+`security-gate` is a CLI tool that ingests output from multiple vulnerability scanners
+(Trivy, Snyk, SARIF, Checkmarx, SonarQube), normalizes findings into a unified model,
+applies a deterministic policy engine, and emits auditable `ALLOW` / `WARN` / `BLOCK`
+release decisions with full decision traces.
+
+Built as a sandbox for practicing production-quality Go patterns: interface-based
+scanner adapters, structured logging via `log/slog`, input hashing for reproducibility,
+context propagation, and comprehensive test coverage including fuzz tests for parsers.
+
+Optional non-authoritative LLM output can elaborate recommended next steps without
+ever influencing the decision, score, trust, or exit code.
 
 ## Table of Contents
 
