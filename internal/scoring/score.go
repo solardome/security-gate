@@ -161,9 +161,10 @@ func TrustScore(ctx Context, pol Policy, findings []Finding) TrustResult {
 		add("ARTIFACT_UNSIGNED", 20)
 	}
 	level := normalizeToken(ctx.ProvenanceLevel)
-	if level == "unknown" || level == "" {
+	switch level {
+	case "", "unknown":
 		add("PROVENANCE_UNKNOWN", 10)
-	} else if level == "none" || level == "basic" {
+	case "none", "basic":
 		add("PROVENANCE_BELOW_REQUIRED", 15)
 	}
 	integrity := normalizeToken(ctx.BuildIntegrity)

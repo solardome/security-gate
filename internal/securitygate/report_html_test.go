@@ -45,7 +45,7 @@ func TestWriteReportHTMLRecommendedStepsNumberingAndSort(t *testing.T) {
 	if i1 == -1 || i2 == -1 || i3 == -1 {
 		t.Fatalf("missing expected numbered recommended steps in html")
 	}
-	if !(i1 < i2 && i2 < i3) {
+	if i1 >= i2 || i2 >= i3 {
 		t.Fatalf("recommended steps not sorted/numbered deterministically: i1=%d i2=%d i3=%d", i1, i2, i3)
 	}
 }

@@ -58,7 +58,11 @@ func TestRunWritesChecksumsAndRunLog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run log missing: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	}()
 	var sawStart bool
 	var sawComplete bool
 	sc := bufio.NewScanner(f)
