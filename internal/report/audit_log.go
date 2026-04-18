@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 )
 
+// NewAuditLogger opens path in append mode and returns a JSON slog logger plus
+// the underlying file closer used to flush and close the log file.
 func NewAuditLogger(path string) (*slog.Logger, io.Closer, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o750); err != nil && dir != "." {

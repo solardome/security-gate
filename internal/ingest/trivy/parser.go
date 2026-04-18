@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Finding is the normalized finding shape produced by the Trivy adapter.
 type Finding struct {
 	ScannerName       string
 	ScannerVersion    string
@@ -107,6 +108,7 @@ type secretFinding struct {
 	Confidence  string   `json:"Confidence"`
 }
 
+// Parse validates and converts a Trivy JSON report into normalized findings.
 func Parse(path string, payload []byte, scannerName, scannerVersion string) ([]Finding, error) {
 	if err := validateReportEnvelope(payload); err != nil {
 		return nil, err

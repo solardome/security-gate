@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Finding is the normalized finding shape produced by the Checkmarx adapter.
 type Finding struct {
 	ScannerName       string
 	ScannerVersion    string
@@ -82,6 +83,7 @@ type node struct {
 	Name     string `json:"name"`
 }
 
+// Parse validates and converts a Checkmarx JSON v2 report into normalized findings.
 func Parse(path string, payload []byte, scannerName, scannerVersion string) ([]Finding, error) {
 	if err := validateReportEnvelope(payload); err != nil {
 		return nil, err

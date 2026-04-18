@@ -84,6 +84,8 @@ var stageRank = map[string]int{
 	"deploy":  3,
 }
 
+// EffectiveStage derives the strictest stage from branch, pipeline, and
+// environment signals using the canonical ordering pr < merge < release < deploy.
 func EffectiveStage(ctx Context) string {
 	base := "pr"
 	switch normalizeToken(ctx.BranchType) {
@@ -112,6 +114,8 @@ func EffectiveStage(ctx Context) string {
 	return winner
 }
 
+// TrustScore computes the trust score and trust-derived risk penalty for the
+// provided context and findings, clamping the result to the 0..100 range.
 func TrustScore(ctx Context, pol Policy, findings []Finding) TrustResult {
 	penalties := []TrustPenalty{}
 	add := func(code string, value int) {
@@ -212,6 +216,7 @@ func TrustPenaltyBand(score int, bands TrustBandPenalties) int {
 	}
 }
 
+// ScoreFinding computes a single normalized finding risk score for a stage.
 func ScoreFinding(f Finding, ctx Context, pol Policy, stage string) int {
 	sev := map[string]int{"critical": 70, "high": 50, "medium": 30, "low": 15, "info": 5, "unknown": 35}[normalizeToken(f.Severity)]
 	expl := map[string]int{"known_exploited": 20, "poc": 10, "none": 0, "unknown": 8}[normalizeToken(f.ExploitMaturity)]
@@ -228,6 +233,8 @@ func ScoreFinding(f Finding, ctx Context, pol Policy, stage string) int {
 	return score
 }
 
+// AggregateOverall combines finding scores, context modifiers, and trust
+// penalties into the overall risk score for the current run.
 func AggregateOverall(findings []Finding, ctx Context, stage string, trust TrustResult, ruleRiskPoints int, newFindingsOnly bool) RiskResult {
 	maxFinding := 0
 	for _, f := range findings {

@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Finding is the normalized finding shape produced by the Snyk adapter.
 type Finding struct {
 	ScannerName       string
 	ScannerVersion    string
@@ -73,6 +74,7 @@ type link struct {
 	URL   string `json:"url"`
 }
 
+// Parse validates and converts a Snyk JSON report into normalized findings.
 func Parse(path string, payload []byte, scannerName, scannerVersion string) ([]Finding, error) {
 	if err := validateReportEnvelope(payload); err != nil {
 		return nil, err

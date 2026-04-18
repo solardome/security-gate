@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Finding is the normalized finding shape produced by the Sonar adapter.
 type Finding struct {
 	ScannerName       string
 	ScannerVersion    string
@@ -73,6 +74,7 @@ type textRange struct {
 	StartLine int `json:"startLine"`
 }
 
+// Parse validates and converts a Sonar Generic Issues report into normalized findings.
 func Parse(path string, payload []byte, scannerName, scannerVersion string) ([]Finding, error) {
 	if err := validateReportEnvelope(payload); err != nil {
 		return nil, err

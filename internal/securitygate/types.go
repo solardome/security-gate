@@ -33,19 +33,32 @@ var canonicalHardStops = []string{
 	"HS_KNOWN_EXPLOITED_UNPATCHED",
 }
 
+// Config defines the inputs, outputs, and runtime options for a single run.
 type Config struct {
-	ScanPaths         []string
+	// ScanPaths lists primary scanner JSON report paths.
+	ScanPaths []string
+	// BaselineScanPaths lists baseline scanner JSON report paths used for diff mode.
 	BaselineScanPaths []string
-	NewFindingsOnly   bool
-	ContextPath       string
-	AutoContext       bool
-	PolicyPath        string
-	AcceptedRiskPath  string
-	OutJSONPath       string
-	OutHTMLPath       string
-	ChecksumsPath     string
-	RunLogPath        string
-	WriteHTML         bool
+	// NewFindingsOnly enables scoring only findings not present in the baseline scans.
+	NewFindingsOnly bool
+	// ContextPath points to the context YAML file.
+	ContextPath string
+	// AutoContext enables deterministic CI context detection when ContextPath is empty.
+	AutoContext bool
+	// PolicyPath points to the policy YAML file.
+	PolicyPath string
+	// AcceptedRiskPath points to the optional accepted-risk YAML file.
+	AcceptedRiskPath string
+	// OutJSONPath is the authoritative report.json output path.
+	OutJSONPath string
+	// OutHTMLPath is the derived report.html output path.
+	OutHTMLPath string
+	// ChecksumsPath is the checksums artifact output path.
+	ChecksumsPath string
+	// RunLogPath is the structured audit log output path.
+	RunLogPath string
+	// WriteHTML controls whether the derived HTML report is written.
+	WriteHTML bool
 }
 
 type Context struct {
@@ -347,23 +360,40 @@ type TraceEntry struct {
 	Details map[string]any `json:"details,omitempty"`
 }
 
+// Report is the authoritative report.json contract emitted by the engine.
 type Report struct {
-	SchemaVersion    string            `json:"schema_version"`
-	GeneratedAt      string            `json:"generated_at"`
-	RunID            string            `json:"run_id"`
-	Inputs           []InputDigest     `json:"inputs"`
-	Context          Context           `json:"context"`
-	EffectiveStage   string            `json:"effective_stage"`
-	Trust            TrustResult       `json:"trust"`
-	Risk             RiskResult        `json:"risk"`
-	HardStop         HardStopResult    `json:"hard_stop"`
-	Decision         string            `json:"decision"`
-	ExitCode         int               `json:"exit_code"`
-	Findings         []ReportFinding   `json:"findings"`
-	AcceptedRisk     GovernanceSummary `json:"accepted_risk"`
+	// SchemaVersion identifies the report schema version.
+	SchemaVersion string `json:"schema_version"`
+	// GeneratedAt records the deterministic report generation timestamp.
+	GeneratedAt string `json:"generated_at"`
+	// RunID is the deterministic identifier for this evaluation run.
+	RunID string `json:"run_id"`
+	// Inputs lists every hashed input consumed by the run.
+	Inputs []InputDigest `json:"inputs"`
+	// Context records the resolved CI and provenance context used for scoring.
+	Context Context `json:"context"`
+	// EffectiveStage is the canonical stage derived from branch, pipeline, and environment.
+	EffectiveStage string `json:"effective_stage"`
+	// Trust contains trust scoring inputs and penalties.
+	Trust TrustResult `json:"trust"`
+	// Risk contains the aggregate numeric risk outcome.
+	Risk RiskResult `json:"risk"`
+	// HardStop reports whether a hard-stop domain forced the decision.
+	HardStop HardStopResult `json:"hard_stop"`
+	// Decision is the canonical ALLOW, WARN, or BLOCK result.
+	Decision string `json:"decision"`
+	// ExitCode is the recommended process exit code for the decision.
+	ExitCode int `json:"exit_code"`
+	// Findings lists normalized findings included in the report.
+	Findings []ReportFinding `json:"findings"`
+	// AcceptedRisk summarizes accepted-risk evaluation results.
+	AcceptedRisk GovernanceSummary `json:"accepted_risk"`
+	// RecommendedSteps lists deterministic follow-up actions for operators.
 	RecommendedSteps []RecommendedStep `json:"recommended_next_steps"`
-	DecisionTrace    []TraceEntry      `json:"decision_trace"`
-	NonAuthoritative NonAuthoritative  `json:"non_authoritative"`
+	// DecisionTrace contains the ordered evaluation trace.
+	DecisionTrace []TraceEntry `json:"decision_trace"`
+	// NonAuthoritative contains optional non-decision metadata.
+	NonAuthoritative NonAuthoritative `json:"non_authoritative"`
 }
 
 type HardStopResult struct {

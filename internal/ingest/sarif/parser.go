@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// Finding is the normalized finding shape produced by the SARIF adapter.
 type Finding struct {
 	ScannerName       string
 	ScannerVersion    string
@@ -101,6 +102,7 @@ type invocation struct {
 var cvePattern = regexp.MustCompile(`(?i)\bCVE-\d{4}-\d{4,7}\b`)
 var cwePattern = regexp.MustCompile(`(?i)\bCWE-\d+\b`)
 
+// Parse validates and converts a SARIF 2.1.0 report into normalized findings.
 func Parse(path string, payload []byte, scannerName, scannerVersion string) ([]Finding, error) {
 	if err := validateReportEnvelope(payload); err != nil {
 		return nil, err

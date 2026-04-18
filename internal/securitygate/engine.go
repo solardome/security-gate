@@ -17,6 +17,9 @@ import (
 	enginereport "github.com/solardome/security-gate/internal/report"
 )
 
+// Run executes the security-gate pipeline end-to-end: it loads inputs,
+// normalizes findings, applies scoring and policy, and writes the report.
+// The returned Report.ExitCode is the recommended process exit code.
 func Run(ctx context.Context, cfg Config) (Report, error) {
 	if ctx == nil {
 		ctx = context.Background()
