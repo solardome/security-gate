@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/solardome/security-gate/compare/v0.3.0...v0.4.0) (2026-04-18)
+
+
+### Features
+
+* propagate context.Context through Run pipeline ([28f70ca](https://github.com/solardome/security-gate/commit/28f70ca6e007969cd3f66038efe7cc6b961512cc))
+
 ## [0.3.0](https://github.com/solardome/security-gate/compare/v0.2.0...v0.3.0) (2026-04-06)
 
 
