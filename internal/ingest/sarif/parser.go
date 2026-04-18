@@ -57,23 +57,23 @@ type driver struct {
 }
 
 type rule struct {
-	ID               string                 `json:"id"`
-	Name             string                 `json:"name"`
-	ShortDescription message                `json:"shortDescription"`
-	FullDescription  message                `json:"fullDescription"`
-	HelpURI          string                 `json:"helpUri"`
-	Properties       map[string]interface{} `json:"properties"`
+	ID               string         `json:"id"`
+	Name             string         `json:"name"`
+	ShortDescription message        `json:"shortDescription"`
+	FullDescription  message        `json:"fullDescription"`
+	HelpURI          string         `json:"helpUri"`
+	Properties       map[string]any `json:"properties"`
 }
 
 type result struct {
-	RuleID              string                 `json:"ruleId"`
-	RuleIndex           *int                   `json:"ruleIndex"`
-	Level               string                 `json:"level"`
-	Message             message                `json:"message"`
-	Locations           []location             `json:"locations"`
-	Fingerprints        map[string]string      `json:"fingerprints"`
-	PartialFingerprints map[string]string      `json:"partialFingerprints"`
-	Properties          map[string]interface{} `json:"properties"`
+	RuleID              string            `json:"ruleId"`
+	RuleIndex           *int              `json:"ruleIndex"`
+	Level               string            `json:"level"`
+	Message             message           `json:"message"`
+	Locations           []location        `json:"locations"`
+	Fingerprints        map[string]string `json:"fingerprints"`
+	PartialFingerprints map[string]string `json:"partialFingerprints"`
+	Properties          map[string]any    `json:"properties"`
 }
 
 type message struct {
@@ -337,8 +337,8 @@ func resolveLocation(rs result) string {
 	return "unknown"
 }
 
-func resolveSeverity(level string, resultProps, ruleProps map[string]interface{}) string {
-	for _, props := range []map[string]interface{}{resultProps, ruleProps} {
+func resolveSeverity(level string, resultProps, ruleProps map[string]any) string {
+	for _, props := range []map[string]any{resultProps, ruleProps} {
 		if props == nil {
 			continue
 		}
@@ -384,8 +384,8 @@ func normalizeSeverity(raw string) string {
 	}
 }
 
-func resolveCategory(resultProps, ruleProps map[string]interface{}) string {
-	for _, props := range []map[string]interface{}{resultProps, ruleProps} {
+func resolveCategory(resultProps, ruleProps map[string]any) string {
+	for _, props := range []map[string]any{resultProps, ruleProps} {
 		category := normalizeToken(propertyString(props, "category", "finding_type", "type"))
 		switch category {
 		case "vuln", "vulnerability":
@@ -417,7 +417,7 @@ func resolveCategory(resultProps, ruleProps map[string]interface{}) string {
 	}
 }
 
-func resolveDomainID(resultProps, ruleProps map[string]interface{}, category string) string {
+func resolveDomainID(resultProps, ruleProps map[string]any, category string) string {
 	domainID := firstNonEmpty(
 		propertyString(resultProps, "domain_id", "domainId"),
 		propertyString(ruleProps, "domain_id", "domainId"),
@@ -520,7 +520,7 @@ func sortedKeys(m map[string]string) []string {
 	return keys
 }
 
-func propertyString(props map[string]interface{}, keys ...string) string {
+func propertyString(props map[string]any, keys ...string) string {
 	if props == nil {
 		return ""
 	}
@@ -534,7 +534,7 @@ func propertyString(props map[string]interface{}, keys ...string) string {
 	return ""
 }
 
-func propertyStrings(props map[string]interface{}, key string) []string {
+func propertyStrings(props map[string]any, key string) []string {
 	if props == nil {
 		return nil
 	}
@@ -543,7 +543,7 @@ func propertyStrings(props map[string]interface{}, key string) []string {
 		return nil
 	}
 	switch t := v.(type) {
-	case []interface{}:
+	case []any:
 		out := make([]string, 0, len(t))
 		for _, item := range t {
 			if s := strings.TrimSpace(valueToString(item)); s != "" {
@@ -568,7 +568,7 @@ func propertyStrings(props map[string]interface{}, key string) []string {
 	return nil
 }
 
-func findProperty(props map[string]interface{}, key string) (interface{}, bool) {
+func findProperty(props map[string]any, key string) (any, bool) {
 	keyNorm := normalizeKey(key)
 	for k, v := range props {
 		if normalizeKey(k) == keyNorm {
@@ -585,7 +585,7 @@ func normalizeKey(raw string) string {
 	return raw
 }
 
-func valueToString(v interface{}) string {
+func valueToString(v any) string {
 	switch t := v.(type) {
 	case string:
 		return t
@@ -596,14 +596,14 @@ func valueToString(v interface{}) string {
 			return "true"
 		}
 		return "false"
-	case []interface{}:
+	case []any:
 		for _, item := range t {
 			if s := strings.TrimSpace(valueToString(item)); s != "" {
 				return s
 			}
 		}
 		return ""
-	case map[string]interface{}:
+	case map[string]any:
 		if s := strings.TrimSpace(valueToString(t["text"])); s != "" {
 			return s
 		}

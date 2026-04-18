@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-func WriteJSON(path string, value interface{}) error {
+func WriteJSON(path string, value any) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o750); err != nil && dir != "." {
 		return err

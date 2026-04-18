@@ -21,14 +21,14 @@ func (l *auditLogger) close() {
 	l.delegate.Close()
 }
 
-func (l *auditLogger) info(event string, fields map[string]interface{}) {
+func (l *auditLogger) info(event string, fields map[string]any) {
 	if l == nil || l.delegate == nil {
 		return
 	}
 	l.delegate.Info(event, fields)
 }
 
-func (l *auditLogger) warn(event string, fields map[string]interface{}) {
+func (l *auditLogger) warn(event string, fields map[string]any) {
 	if l == nil || l.delegate == nil {
 		return
 	}

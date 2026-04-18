@@ -8,7 +8,7 @@ func applyNewFindingsOnlyMode(state *EngineState, cfg Config) bool {
 	}
 	if state.EffectiveStage != "pr" && state.EffectiveStage != "merge" {
 		state.ValidationErrors = append(state.ValidationErrors, "new findings only mode is supported only for pr/merge stages")
-		addTrace(state, "baseline_diff", "validation_error", map[string]interface{}{
+		addTrace(state, "baseline_diff", "validation_error", map[string]any{
 			"new_findings_only": true,
 			"effective_stage":   state.EffectiveStage,
 			"reason":            "unsupported_stage",
@@ -36,7 +36,7 @@ func applyNewFindingsOnlyMode(state *EngineState, cfg Config) bool {
 		}
 	}
 
-	addTrace(state, "baseline_diff", "ok", map[string]interface{}{
+	addTrace(state, "baseline_diff", "ok", map[string]any{
 		"new_findings_only":         true,
 		"effective_stage":           state.EffectiveStage,
 		"baseline_findings":         len(state.BaselineFindings),

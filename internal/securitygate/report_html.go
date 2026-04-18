@@ -950,7 +950,7 @@ func tracePhaseVisual(phase string) tracePhaseView {
 	}
 }
 
-func renderTraceDetails(details map[string]interface{}) string {
+func renderTraceDetails(details map[string]any) string {
 	if len(details) == 0 {
 		return ""
 	}
@@ -1010,7 +1010,7 @@ func deriveDecisionMeta(report Report) decisionMeta {
 	return meta
 }
 
-func detailInt(details map[string]interface{}, key string) (int, bool) {
+func detailInt(details map[string]any, key string) (int, bool) {
 	if details == nil {
 		return 0, false
 	}
@@ -1038,7 +1038,7 @@ func detailInt(details map[string]interface{}, key string) (int, bool) {
 	}
 }
 
-func detailBool(details map[string]interface{}, key string) (bool, bool) {
+func detailBool(details map[string]any, key string) (bool, bool) {
 	if details == nil {
 		return false, false
 	}

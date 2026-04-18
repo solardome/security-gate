@@ -48,32 +48,32 @@ type scanInfo struct {
 }
 
 type scanResult struct {
-	QueryID          interface{}            `json:"queryId"`
-	QueryName        string                 `json:"queryName"`
-	Severity         string                 `json:"severity"`
-	State            string                 `json:"state"`
-	Type             string                 `json:"type"`
-	Group            string                 `json:"group"`
-	SimilarityID     string                 `json:"similarityId"`
-	FilePath         string                 `json:"filePath"`
-	Path             string                 `json:"path"`
-	FileName         string                 `json:"fileName"`
-	PackageName      string                 `json:"packageName"`
-	Component        string                 `json:"component"`
-	DomainID         string                 `json:"domain_id"`
-	Category         string                 `json:"category"`
-	CVE              string                 `json:"cve"`
-	CWE              string                 `json:"cwe"`
-	Confidence       string                 `json:"confidence"`
-	Reachability     string                 `json:"reachability"`
-	ExploitMaturity  string                 `json:"exploitMaturity"`
-	Description      string                 `json:"description"`
-	References       []string               `json:"references"`
-	Reference        string                 `json:"reference"`
-	URL              string                 `json:"url"`
-	Data             map[string]interface{} `json:"data"`
-	Nodes            []node                 `json:"nodes"`
-	DetectionDateRaw string                 `json:"detectionDate"`
+	QueryID          any            `json:"queryId"`
+	QueryName        string         `json:"queryName"`
+	Severity         string         `json:"severity"`
+	State            string         `json:"state"`
+	Type             string         `json:"type"`
+	Group            string         `json:"group"`
+	SimilarityID     string         `json:"similarityId"`
+	FilePath         string         `json:"filePath"`
+	Path             string         `json:"path"`
+	FileName         string         `json:"fileName"`
+	PackageName      string         `json:"packageName"`
+	Component        string         `json:"component"`
+	DomainID         string         `json:"domain_id"`
+	Category         string         `json:"category"`
+	CVE              string         `json:"cve"`
+	CWE              string         `json:"cwe"`
+	Confidence       string         `json:"confidence"`
+	Reachability     string         `json:"reachability"`
+	ExploitMaturity  string         `json:"exploitMaturity"`
+	Description      string         `json:"description"`
+	References       []string       `json:"references"`
+	Reference        string         `json:"reference"`
+	URL              string         `json:"url"`
+	Data             map[string]any `json:"data"`
+	Nodes            []node         `json:"nodes"`
+	DetectionDateRaw string         `json:"detectionDate"`
 }
 
 type node struct {
@@ -279,7 +279,7 @@ func resolveReferences(rs scanResult) []string {
 	return dedup(out)
 }
 
-func propertyString(m map[string]interface{}, keys ...string) string {
+func propertyString(m map[string]any, keys ...string) string {
 	if m == nil {
 		return ""
 	}
@@ -303,7 +303,7 @@ func normalizeKey(raw string) string {
 	return n
 }
 
-func interfaceToString(v interface{}) string {
+func interfaceToString(v any) string {
 	switch t := v.(type) {
 	case string:
 		return t

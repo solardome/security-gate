@@ -221,13 +221,13 @@ func TestUnknownSignalModeBlockReleaseAllowsKnownScanTimestampWithoutFindings(t 
 	}
 	writeYAMLFile(t, contextPath, ctx)
 
-	scan := map[string]interface{}{
+	scan := map[string]any{
 		"ArtifactName": "registry.local/app@sha256:deadbeef",
 		"GeneratedAt":  time.Now().UTC().Format(time.RFC3339),
-		"Results": []interface{}{
-			map[string]interface{}{
+		"Results": []any{
+			map[string]any{
 				"Target":          "app",
-				"Vulnerabilities": []interface{}{},
+				"Vulnerabilities": []any{},
 			},
 		},
 	}
@@ -461,23 +461,23 @@ func TestAcceptedRiskCanonicalScannerMatchesSarifVariant(t *testing.T) {
 		ExpiredAR:     false,
 	})
 
-	sarifScan := map[string]interface{}{
+	sarifScan := map[string]any{
 		"version": "2.1.0",
-		"runs": []interface{}{
-			map[string]interface{}{
-				"tool": map[string]interface{}{
-					"driver": map[string]interface{}{
+		"runs": []any{
+			map[string]any{
+				"tool": map[string]any{
+					"driver": map[string]any{
 						"name": "snyk-code",
 					},
 				},
-				"results": []interface{}{
-					map[string]interface{}{
+				"results": []any{
+					map[string]any{
 						"ruleId": "CVE-2026-5555",
 						"level":  "warning",
-						"message": map[string]interface{}{
+						"message": map[string]any{
 							"text": "x",
 						},
-						"properties": map[string]interface{}{
+						"properties": map[string]any{
 							"cve":       "CVE-2026-5555",
 							"domain_id": "VULN_GENERIC",
 							"category":  "vuln",
@@ -653,7 +653,7 @@ func hasErrorContaining(trace []TraceEntry, phase, needle string) bool {
 					return true
 				}
 			}
-		case []interface{}:
+		case []any:
 			for _, msg := range v {
 				s, ok := msg.(string)
 				if ok && strings.Contains(s, needle) {

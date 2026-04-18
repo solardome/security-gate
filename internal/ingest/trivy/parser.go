@@ -32,7 +32,7 @@ type Finding struct {
 }
 
 type report struct {
-	SchemaVersion interface{} `json:"SchemaVersion"`
+	SchemaVersion any         `json:"SchemaVersion"`
 	ArtifactName  string      `json:"ArtifactName"`
 	GeneratedAt   string      `json:"GeneratedAt"`
 	Scanner       scannerMeta `json:"Scanner"`

@@ -89,7 +89,7 @@ func fileSHA256(path string) (string, []byte, error) {
 	return hex.EncodeToString(h[:]), b, nil
 }
 
-func parseYAML(path, kind string, out interface{}) ([]byte, string, error) {
+func parseYAML(path, kind string, out any) ([]byte, string, error) {
 	hash, b, err := fileSHA256(path)
 	if err != nil {
 		return nil, "", err
@@ -113,7 +113,7 @@ func parseYAML(path, kind string, out interface{}) ([]byte, string, error) {
 	return b, hash, nil
 }
 
-func yamlNodeToValue(node *yaml.Node) interface{} {
+func yamlNodeToValue(node *yaml.Node) any {
 	if node == nil {
 		return nil
 	}
@@ -124,7 +124,7 @@ func yamlNodeToValue(node *yaml.Node) interface{} {
 		}
 		return yamlNodeToValue(node.Content[0])
 	case yaml.MappingNode:
-		m := make(map[string]interface{}, len(node.Content)/2)
+		m := make(map[string]any, len(node.Content)/2)
 		for i := 0; i+1 < len(node.Content); i += 2 {
 			k := node.Content[i]
 			v := node.Content[i+1]
@@ -132,7 +132,7 @@ func yamlNodeToValue(node *yaml.Node) interface{} {
 		}
 		return m
 	case yaml.SequenceNode:
-		out := make([]interface{}, 0, len(node.Content))
+		out := make([]any, 0, len(node.Content))
 		for _, c := range node.Content {
 			out = append(out, yamlNodeToValue(c))
 		}
@@ -366,7 +366,7 @@ func validateAcceptedRiskSchema(ar AcceptedRiskSet) error {
 	return nil
 }
 
-func addTrace(state *EngineState, phase, result string, details map[string]interface{}) {
+func addTrace(state *EngineState, phase, result string, details map[string]any) {
 	state.Trace = append(state.Trace, TraceEntry{
 		Order:   len(state.Trace) + 1,
 		Phase:   phase,

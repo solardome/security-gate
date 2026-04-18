@@ -70,7 +70,7 @@ func TestWriteReportHTMLNoiseBudgetPreview(t *testing.T) {
 				Order:  1,
 				Phase:  "noise_budget",
 				Result: "presentation_only",
-				Details: map[string]interface{}{
+				Details: map[string]any{
 					"enabled":                 true,
 					"bypassed":                false,
 					"stage_supported":         true,

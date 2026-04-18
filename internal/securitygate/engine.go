@@ -32,7 +32,7 @@ func Run(cfg Config) (Report, error) {
 	log, logErr := newAuditLogger(cfg.RunLogPath)
 	if logErr == nil {
 		defer log.close()
-		log.info("run.start", map[string]interface{}{
+		log.info("run.start", map[string]any{
 			"scan_count":          len(cfg.ScanPaths),
 			"baseline_scan_count": len(cfg.BaselineScanPaths),
 			"new_findings_only":   cfg.NewFindingsOnly,
@@ -49,12 +49,12 @@ func Run(cfg Config) (Report, error) {
 	state := EngineState{Now: time.Now().UTC()}
 	if err := loadInputs(&state, cfg); err != nil {
 		if log != nil {
-			log.warn("run.load_inputs.error", map[string]interface{}{"error": err.Error()})
+			log.warn("run.load_inputs.error", map[string]any{"error": err.Error()})
 		}
 		return Report{}, err
 	}
 	if log != nil {
-		log.info("run.load_inputs.ok", map[string]interface{}{
+		log.info("run.load_inputs.ok", map[string]any{
 			"input_count":         len(state.InputDigests),
 			"validation_warnings": len(state.ValidationWarnings),
 			"validation_errors":   len(state.ValidationErrors),
@@ -63,20 +63,20 @@ func Run(cfg Config) (Report, error) {
 	}
 
 	state.EffectiveStage = effectiveStage(state.Context)
-	addTrace(&state, "stage_mapping", "ok", map[string]interface{}{
+	addTrace(&state, "stage_mapping", "ok", map[string]any{
 		"branch_type":     state.Context.BranchType,
 		"pipeline_stage":  state.Context.PipelineStage,
 		"environment":     state.Context.Environment,
 		"effective_stage": state.EffectiveStage,
 	})
 	if log != nil {
-		log.info("run.stage_mapping.ok", map[string]interface{}{"effective_stage": state.EffectiveStage})
+		log.info("run.stage_mapping.ok", map[string]any{"effective_stage": state.EffectiveStage})
 	}
 	if shouldBlockReleaseOnUnknownSignals(state.Policy, state.EffectiveStage) {
 		unknownErrs := unknownSignalValidationErrors(state.Context, state.ScanDetectedAt)
 		if len(unknownErrs) > 0 {
 			state.ValidationErrors = append(state.ValidationErrors, unknownErrs...)
-			addTrace(&state, "unknown_signal_mode", "validation_error", map[string]interface{}{
+			addTrace(&state, "unknown_signal_mode", "validation_error", map[string]any{
 				"mode":   state.Policy.Defaults.UnknownSignalMode,
 				"errors": append([]string{}, unknownErrs...),
 			})
@@ -85,7 +85,7 @@ func Run(cfg Config) (Report, error) {
 
 	hardStops := applyHardStops(state.Findings, state.Policy)
 	state.HardStopDomains = hardStops
-	addTrace(&state, "hard_stop", "ok", map[string]interface{}{
+	addTrace(&state, "hard_stop", "ok", map[string]any{
 		"triggered": len(hardStops) > 0,
 		"domains":   hardStops,
 	})
@@ -94,7 +94,7 @@ func Run(cfg Config) (Report, error) {
 		state.ValidationErrors = append(state.ValidationErrors, err.Error())
 	}
 	applyAcceptedRisk(&state)
-	addTrace(&state, "governance", "ok", map[string]interface{}{
+	addTrace(&state, "governance", "ok", map[string]any{
 		"records_evaluated": state.GovernanceSummary.RecordsEvaluated,
 		"records_applied":   state.GovernanceSummary.RecordsApplied,
 		"invalid_records":   state.GovernanceSummary.InvalidRecords,
@@ -108,14 +108,14 @@ func Run(cfg Config) (Report, error) {
 		state.Findings[i].FindingRiskScore = scoreFinding(state.Findings[i], state.Context, state.Policy, state.EffectiveStage)
 	}
 	state.Risk = aggregateOverall(state.Findings, state.Context, state.EffectiveStage, state.Trust, ruleRisk, newFindingsOnlyActive)
-	addTrace(&state, "scoring", "ok", map[string]interface{}{
+	addTrace(&state, "scoring", "ok", map[string]any{
 		"trust_score":              state.Trust.Score,
 		"trust_penalty":            state.Trust.RiskPenalty,
 		"overall_risk_score":       state.Risk.OverallScore,
 		"new_findings_only_active": newFindingsOnlyActive,
 	})
 	noiseSummary := computeNoiseBudgetSummary(state.Findings, state.Policy, state.EffectiveStage, len(state.HardStopDomains) > 0)
-	addTrace(&state, "noise_budget", noiseBudgetTraceResult(noiseSummary), map[string]interface{}{
+	addTrace(&state, "noise_budget", noiseBudgetTraceResult(noiseSummary), map[string]any{
 		"enabled":                 noiseSummary.Enabled,
 		"bypassed":                noiseSummary.Bypassed,
 		"stage_supported":         noiseSummary.StageSupported,
@@ -146,7 +146,7 @@ func Run(cfg Config) (Report, error) {
 
 	if err := writeReportJSON(cfg.OutJSONPath, report); err != nil {
 		if log != nil {
-			log.warn("run.report_json.error", map[string]interface{}{"error": err.Error()})
+			log.warn("run.report_json.error", map[string]any{"error": err.Error()})
 		}
 		return Report{}, err
 	}
@@ -154,9 +154,9 @@ func Run(cfg Config) (Report, error) {
 	htmlWritten := false
 	if cfg.WriteHTML {
 		if err := writeReportHTML(cfg.OutHTMLPath, report); err != nil {
-			addTrace(&state, "report_html", "error", map[string]interface{}{"error": err.Error()})
+			addTrace(&state, "report_html", "error", map[string]any{"error": err.Error()})
 			if log != nil {
-				log.warn("run.report_html.error", map[string]interface{}{"error": err.Error(), "path": cfg.OutHTMLPath})
+				log.warn("run.report_html.error", map[string]any{"error": err.Error(), "path": cfg.OutHTMLPath})
 			}
 		} else {
 			htmlWritten = true
@@ -165,12 +165,12 @@ func Run(cfg Config) (Report, error) {
 	}
 	if err := writeArtifactChecksums(cfg.ChecksumsPath, artifactPaths); err != nil {
 		if log != nil {
-			log.warn("run.checksums.error", map[string]interface{}{"error": err.Error()})
+			log.warn("run.checksums.error", map[string]any{"error": err.Error()})
 		}
 		return Report{}, err
 	}
 	if log != nil {
-		log.info("run.complete", map[string]interface{}{
+		log.info("run.complete", map[string]any{
 			"decision":        report.Decision,
 			"exit_code":       report.ExitCode,
 			"overall_risk":    report.Risk.OverallScore,
@@ -232,7 +232,7 @@ func loadInputs(state *EngineState, cfg Config) error {
 	polErrors := validatePolicy(state.Policy)
 	state.ValidationErrors = append(state.ValidationErrors, polErrors...)
 
-	addTrace(state, "input_validation", inputValidationTraceResult(state), map[string]interface{}{
+	addTrace(state, "input_validation", inputValidationTraceResult(state), map[string]any{
 		"input_count":   len(state.InputDigests),
 		"error_count":   len(state.ValidationErrors),
 		"warning_count": len(state.ValidationWarnings),
@@ -385,7 +385,7 @@ func decide(state *EngineState, ruleMinDecision string, ruleTrustFloor int) stri
 	}
 	decision = tighterDecision(decision, ruleMinDecision)
 
-	addTrace(state, "decision", "matrix", map[string]interface{}{
+	addTrace(state, "decision", "matrix", map[string]any{
 		"overall_risk": state.Risk.OverallScore,
 		"warn_floor":   th.WarnFloor,
 		"block_floor":  th.BlockFloor,

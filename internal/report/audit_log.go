@@ -13,10 +13,10 @@ type AuditLogger struct {
 }
 
 type AuditEvent struct {
-	Timestamp string                 `json:"timestamp"`
-	Level     string                 `json:"level"`
-	Event     string                 `json:"event"`
-	Fields    map[string]interface{} `json:"fields,omitempty"`
+	Timestamp string         `json:"timestamp"`
+	Level     string         `json:"level"`
+	Event     string         `json:"event"`
+	Fields    map[string]any `json:"fields,omitempty"`
 }
 
 func NewAuditLogger(path string) (*AuditLogger, error) {
@@ -41,15 +41,15 @@ func (l *AuditLogger) Close() {
 	_ = l.file.Close()
 }
 
-func (l *AuditLogger) Info(event string, fields map[string]interface{}) {
+func (l *AuditLogger) Info(event string, fields map[string]any) {
 	l.log("INFO", event, fields)
 }
 
-func (l *AuditLogger) Warn(event string, fields map[string]interface{}) {
+func (l *AuditLogger) Warn(event string, fields map[string]any) {
 	l.log("WARN", event, fields)
 }
 
-func (l *AuditLogger) log(level, event string, fields map[string]interface{}) {
+func (l *AuditLogger) log(level, event string, fields map[string]any) {
 	if l == nil || l.enc == nil {
 		return
 	}

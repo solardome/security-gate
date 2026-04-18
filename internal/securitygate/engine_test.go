@@ -164,7 +164,7 @@ func TestReportAcceptedRiskJSONContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestReportAcceptedRiskJSONContract(t *testing.T) {
 	if !ok {
 		t.Fatalf("accepted_risk missing from report")
 	}
-	ar, ok := arAny.(map[string]interface{})
+	ar, ok := arAny.(map[string]any)
 	if !ok {
 		t.Fatalf("accepted_risk must be object, got %T", arAny)
 	}
@@ -199,38 +199,38 @@ func TestRunSupportsSARIFInput(t *testing.T) {
 		ExpiredAR:     false,
 	})
 
-	sarifScan := map[string]interface{}{
+	sarifScan := map[string]any{
 		"version": "2.1.0",
-		"runs": []interface{}{
-			map[string]interface{}{
-				"tool": map[string]interface{}{
-					"driver": map[string]interface{}{
+		"runs": []any{
+			map[string]any{
+				"tool": map[string]any{
+					"driver": map[string]any{
 						"name":            "snyk-code",
 						"semanticVersion": "1.2.3",
-						"rules": []interface{}{
-							map[string]interface{}{
+						"rules": []any{
+							map[string]any{
 								"id": "CVE-2026-5555",
-								"shortDescription": map[string]interface{}{
+								"shortDescription": map[string]any{
 									"text": "sample finding",
 								},
-								"properties": map[string]interface{}{
+								"properties": map[string]any{
 									"category": "vuln",
 								},
 							},
 						},
 					},
 				},
-				"invocations": []interface{}{
-					map[string]interface{}{"endTimeUtc": "2026-02-19T10:00:00Z"},
+				"invocations": []any{
+					map[string]any{"endTimeUtc": "2026-02-19T10:00:00Z"},
 				},
-				"results": []interface{}{
-					map[string]interface{}{
+				"results": []any{
+					map[string]any{
 						"ruleId": "CVE-2026-5555",
 						"level":  "note",
-						"message": map[string]interface{}{
+						"message": map[string]any{
 							"text": "sample finding",
 						},
-						"properties": map[string]interface{}{
+						"properties": map[string]any{
 							"component":         "openssl",
 							"domain_id":         "VULN_GENERIC",
 							"severity":          "low",
@@ -281,11 +281,11 @@ func TestRunSupportsSnykInput(t *testing.T) {
 		ExpiredAR:     false,
 	})
 
-	snykScan := map[string]interface{}{
+	snykScan := map[string]any{
 		"generatedAt": "2026-02-19T10:00:00Z",
 		"projectName": "payments-api",
-		"vulnerabilities": []interface{}{
-			map[string]interface{}{
+		"vulnerabilities": []any{
+			map[string]any{
 				"id":          "SNYK-TEST-1",
 				"title":       "low vuln",
 				"severity":    "low",
@@ -326,14 +326,14 @@ func TestRunSupportsCheckmarxInput(t *testing.T) {
 		ExpiredAR:     false,
 	})
 
-	checkmarxScan := map[string]interface{}{
+	checkmarxScan := map[string]any{
 		"reportType": "json-v2",
-		"scanInfo": map[string]interface{}{
+		"scanInfo": map[string]any{
 			"projectName": "payments-api",
 			"finishedAt":  "2026-02-19T10:00:00Z",
 		},
-		"scanResults": []interface{}{
-			map[string]interface{}{
+		"scanResults": []any{
+			map[string]any{
 				"queryId":   111,
 				"queryName": "Low signal",
 				"severity":  "low",
@@ -374,21 +374,21 @@ func TestRunSupportsSonarGenericInput(t *testing.T) {
 		ExpiredAR:     false,
 	})
 
-	sonarScan := map[string]interface{}{
+	sonarScan := map[string]any{
 		"generatedAt": "2026-02-19T10:00:00Z",
 		"projectKey":  "payments-api",
-		"rules": []interface{}{
-			map[string]interface{}{
+		"rules": []any{
+			map[string]any{
 				"id":       "R1",
 				"name":     "Low issue",
 				"severity": "LOW",
 				"type":     "CODE_SMELL",
 			},
 		},
-		"issues": []interface{}{
-			map[string]interface{}{
+		"issues": []any{
+			map[string]any{
 				"ruleId": "R1",
-				"primaryLocation": map[string]interface{}{
+				"primaryLocation": map[string]any{
 					"message":  "Low issue",
 					"filePath": "src/app.go",
 				},
@@ -452,13 +452,13 @@ func writeScenario(t *testing.T, dir string, cfg scenarioConfig) scenarioPaths {
 	contextPath := filepath.Join(dir, "context.yaml")
 	writeYAMLFile(t, contextPath, ctx)
 
-	scan := map[string]interface{}{
+	scan := map[string]any{
 		"ArtifactName": "registry.local/app@sha256:deadbeef",
-		"Results": []interface{}{
-			map[string]interface{}{
+		"Results": []any{
+			map[string]any{
 				"Target": "app",
-				"Vulnerabilities": []interface{}{
-					map[string]interface{}{
+				"Vulnerabilities": []any{
+					map[string]any{
 						"VulnerabilityID":  "CVE-2025-1111",
 						"PkgName":          "openssl",
 						"InstalledVersion": "1.1.1",
@@ -516,7 +516,7 @@ func writeScenario(t *testing.T, dir string, cfg scenarioConfig) scenarioPaths {
 	return paths
 }
 
-func writeJSONFile(t *testing.T, path string, v interface{}) {
+func writeJSONFile(t *testing.T, path string, v any) {
 	t.Helper()
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -527,13 +527,13 @@ func writeJSONFile(t *testing.T, path string, v interface{}) {
 	}
 }
 
-func writeYAMLFile(t *testing.T, path string, v interface{}) {
+func writeYAMLFile(t *testing.T, path string, v any) {
 	t.Helper()
 	j, err := json.Marshal(v)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var any interface{}
+	var any any
 	if err := json.Unmarshal(j, &any); err != nil {
 		t.Fatal(err)
 	}

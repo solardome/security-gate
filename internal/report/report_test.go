@@ -81,8 +81,8 @@ func TestAuditLoggerWritesJSONLines(t *testing.T) {
 	}
 	defer logger.Close()
 
-	logger.Info("scan.started", map[string]interface{}{"count": 1})
-	logger.Warn("scan.failed", map[string]interface{}{"reason": "invalid"})
+	logger.Info("scan.started", map[string]any{"count": 1})
+	logger.Warn("scan.failed", map[string]any{"reason": "invalid"})
 	logger.Close()
 
 	lines := strings.Split(strings.TrimSpace(string(mustReadFile(t, path))), "\n")

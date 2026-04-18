@@ -341,10 +341,10 @@ type RecommendedStep struct {
 }
 
 type TraceEntry struct {
-	Order   int                    `json:"order"`
-	Phase   string                 `json:"phase"`
-	Result  string                 `json:"result"`
-	Details map[string]interface{} `json:"details,omitempty"`
+	Order   int            `json:"order"`
+	Phase   string         `json:"phase"`
+	Result  string         `json:"result"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 type Report struct {
