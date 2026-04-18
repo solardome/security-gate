@@ -338,6 +338,8 @@ Supporting docs:
 
 ## Development and Validation
 
+Local development: `make check`
+
 Run required checks:
 
 ```bash
