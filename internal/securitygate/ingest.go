@@ -2,7 +2,6 @@ package securitygate
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/solardome/security-gate/internal/ingest/checkmarx"
@@ -55,7 +54,7 @@ func parseScan(path string, payload []byte, scannerName, scannerVersion string) 
 		}
 		return fromSonarFindings(findings), reportDetectedAt, nil
 	default:
-		return nil, "unknown", fmt.Errorf("unsupported scan format %q", format)
+		return nil, "unknown", fmt.Errorf("%w: %q", ErrUnsupportedFormat, format)
 	}
 }
 
@@ -84,21 +83,21 @@ func detectScanFormat(payload []byte) (string, error) {
 		if looksLikeCheckmarx(root) {
 			return "checkmarx", nil
 		}
-		return "", errors.New("unsupported scan format: scanResults key present but payload does not match expected Checkmarx JSON v2 envelope")
+		return "", fmt.Errorf("%w: scanResults key present but payload does not match expected Checkmarx JSON v2 envelope", ErrUnsupportedFormat)
 	}
 	if _, ok := root["vulnerabilities"]; ok {
 		if looksLikeSnyk(root) {
 			return "snyk", nil
 		}
-		return "", errors.New("unsupported scan format: vulnerabilities key present but payload does not match expected Snyk JSON envelope")
+		return "", fmt.Errorf("%w: vulnerabilities key present but payload does not match expected Snyk JSON envelope", ErrUnsupportedFormat)
 	}
 	if _, ok := root["issues"]; ok {
 		if looksLikeSonar(root) {
 			return "sonar", nil
 		}
-		return "", errors.New("unsupported scan format: issues key present but payload does not match expected Sonar Generic Issues envelope")
+		return "", fmt.Errorf("%w: issues key present but payload does not match expected Sonar Generic Issues envelope", ErrUnsupportedFormat)
 	}
-	return "", errors.New("unsupported scan format: expected Trivy JSON, SARIF 2.1.0, Snyk JSON, Checkmarx JSON v2, or Sonar Generic Issues JSON")
+	return "", fmt.Errorf("%w: expected Trivy JSON, SARIF 2.1.0, Snyk JSON, Checkmarx JSON v2, or Sonar Generic Issues JSON", ErrUnsupportedFormat)
 }
 
 func looksLikeSARIF(root map[string]json.RawMessage) bool {

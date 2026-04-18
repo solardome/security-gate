@@ -215,6 +215,14 @@ func TestRunCancelledReturnsContextError(t *testing.T) {
 	}
 }
 
+func TestLoadPolicyWrapsSentinelError(t *testing.T) {
+	state := &EngineState{}
+	err := loadPolicy(state, filepath.Join(t.TempDir(), "missing-policy.yaml"))
+	if !errors.Is(err, ErrPolicyLoad) {
+		t.Fatalf("loadPolicy() error = %v, want ErrPolicyLoad", err)
+	}
+}
+
 func TestRunSupportsSARIFInput(t *testing.T) {
 	dir := t.TempDir()
 	paths := writeScenario(t, dir, scenarioConfig{

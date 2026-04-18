@@ -345,7 +345,7 @@ func loadPolicy(state *EngineState, path string) error {
 	_, hash, err := parseYAML(path, "policy", &pol)
 	state.InputDigests = append(state.InputDigests, InputDigest{Kind: "policy_yaml", Path: path, SHA256: hash, ReadOK: err == nil})
 	if err != nil {
-		return fmt.Errorf("policy load failed: %w", err)
+		return fmt.Errorf("%w: %w", ErrPolicyLoad, err)
 	}
 	state.Policy = pol
 	return nil
@@ -356,7 +356,7 @@ func loadContext(state *EngineState, path string) error {
 	_, hash, err := parseYAML(path, "context", &ctx)
 	state.InputDigests = append(state.InputDigests, InputDigest{Kind: "context_yaml", Path: path, SHA256: hash, ReadOK: err == nil})
 	if err != nil {
-		return fmt.Errorf("context load failed: %w", err)
+		return fmt.Errorf("%w: %w", ErrContextLoad, err)
 	}
 	state.Context = ctx
 	return nil
@@ -367,7 +367,7 @@ func loadAcceptedRisk(state *EngineState, path string) error {
 	_, hash, err := parseYAML(path, "accepted_risk", &ar)
 	state.InputDigests = append(state.InputDigests, InputDigest{Kind: "accepted_risk_yaml", Path: path, SHA256: hash, ReadOK: err == nil})
 	if err != nil {
-		return fmt.Errorf("accepted risk load failed: %w", err)
+		return fmt.Errorf("%w: %w", ErrAcceptedRiskLoad, err)
 	}
 	state.AcceptedRisk = ar
 	return nil
@@ -407,13 +407,13 @@ func loadScans(ctx context.Context, state *EngineState, paths []string) error {
 		hash, b, err := fileSHA256(p)
 		state.InputDigests = append(state.InputDigests, InputDigest{Kind: "scan_json", Role: "primary", Path: p, SHA256: hash, ReadOK: err == nil})
 		if err != nil {
-			return fmt.Errorf("scan file unreadable %s: %w", p, err)
+			return fmt.Errorf("%w %s: %w", ErrScanUnreadable, p, err)
 		}
 		scannerName := firstNonEmpty(state.Context.Scanner.Name, "trivy")
 		scannerVersion := firstNonEmpty(state.Context.Scanner.Version, "unknown")
 		findings, detectedAt, err := parseScan(p, b, scannerName, scannerVersion)
 		if err != nil {
-			return fmt.Errorf("scan parse failed %s: %w", p, err)
+			return fmt.Errorf("%w %s: %w", ErrScanParseFailed, p, err)
 		}
 		state.ScanDetectedAt = append(state.ScanDetectedAt, detectedAt)
 		all = append(all, findings...)
@@ -433,13 +433,13 @@ func loadBaselineScans(ctx context.Context, state *EngineState, paths []string) 
 		hash, b, err := fileSHA256(p)
 		state.InputDigests = append(state.InputDigests, InputDigest{Kind: "scan_json", Role: "baseline", Path: p, SHA256: hash, ReadOK: err == nil})
 		if err != nil {
-			return fmt.Errorf("baseline scan file unreadable %s: %w", p, err)
+			return fmt.Errorf("%w baseline %s: %w", ErrScanUnreadable, p, err)
 		}
 		scannerName := firstNonEmpty(state.Context.Scanner.Name, "trivy")
 		scannerVersion := firstNonEmpty(state.Context.Scanner.Version, "unknown")
 		findings, _, err := parseScan(p, b, scannerName, scannerVersion)
 		if err != nil {
-			return fmt.Errorf("baseline scan parse failed %s: %w", p, err)
+			return fmt.Errorf("%w baseline %s: %w", ErrScanParseFailed, p, err)
 		}
 		all = append(all, findings...)
 	}
