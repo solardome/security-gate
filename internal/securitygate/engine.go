@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"sort"
@@ -17,6 +18,12 @@ import (
 	enginereport "github.com/solardome/security-gate/internal/report"
 )
 
+type scorePhaseResult struct {
+	minDecision string
+	trustFloor  int
+	ruleStepIDs []string
+}
+
 // Run executes the security-gate pipeline end-to-end: it loads inputs,
 // normalizes findings, applies scoring and policy, and writes the report.
 // The returned Report.ExitCode is the recommended process exit code.
@@ -24,20 +31,9 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if strings.TrimSpace(cfg.OutJSONPath) == "" {
-		cfg.OutJSONPath = "report.json"
-	}
-	if strings.TrimSpace(cfg.OutHTMLPath) == "" {
-		cfg.OutHTMLPath = "report.html"
-	}
-	if strings.TrimSpace(cfg.ChecksumsPath) == "" {
-		cfg.ChecksumsPath = DefaultChecksumsPath(cfg.OutJSONPath)
-	}
-	if strings.TrimSpace(cfg.RunLogPath) == "" {
-		cfg.RunLogPath = DefaultRunLogPath(cfg.OutJSONPath)
-	}
+	cfg = applyDefaults(cfg)
 
-	logger, logCloser, logErr := enginereport.NewAuditLogger(cfg.RunLogPath)
+	logger, logCloser, logErr := setupLogger(cfg)
 	if logErr == nil {
 		defer func() {
 			_ = logCloser.Close()
@@ -56,15 +52,57 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 		)
 	}
 
+	state, err := loadPhase(ctx, cfg, logger)
+	if err != nil {
+		return Report{}, err
+	}
+
+	scoreResult, err := scorePhase(ctx, &state, cfg, logger)
+	if err != nil {
+		return Report{}, err
+	}
+
+	if err := decidePhase(ctx, &state, scoreResult, logger); err != nil {
+		return Report{}, err
+	}
+
+	return writePhase(ctx, cfg, &state, logger)
+}
+
+func applyDefaults(cfg Config) Config {
+	if strings.TrimSpace(cfg.OutJSONPath) == "" {
+		cfg.OutJSONPath = "report.json"
+	}
+	if strings.TrimSpace(cfg.OutHTMLPath) == "" {
+		cfg.OutHTMLPath = "report.html"
+	}
+	if strings.TrimSpace(cfg.ChecksumsPath) == "" {
+		cfg.ChecksumsPath = DefaultChecksumsPath(cfg.OutJSONPath)
+	}
+	if strings.TrimSpace(cfg.RunLogPath) == "" {
+		cfg.RunLogPath = DefaultRunLogPath(cfg.OutJSONPath)
+	}
+	return cfg
+}
+
+func setupLogger(cfg Config) (*slog.Logger, io.Closer, error) {
+	return enginereport.NewAuditLogger(cfg.RunLogPath)
+}
+
+func loadPhase(ctx context.Context, cfg Config, logger *slog.Logger) (EngineState, error) {
+	if err := checkRunContext(ctx, logger, "load_inputs"); err != nil {
+		return EngineState{}, err
+	}
+
 	state := EngineState{Now: time.Now().UTC()}
 	if err := loadInputs(ctx, &state, cfg); err != nil {
 		if logger != nil {
 			logger.Warn("run.load_inputs.error", "error", err.Error())
 		}
-		return Report{}, err
+		return EngineState{}, err
 	}
 	if err := checkRunContext(ctx, logger, "load_inputs"); err != nil {
-		return Report{}, err
+		return EngineState{}, err
 	}
 	if logger != nil {
 		logger.Info("run.load_inputs.ok",
@@ -74,9 +112,16 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 			"normalized_findings", len(state.Findings),
 		)
 	}
+	return state, nil
+}
+
+func scorePhase(ctx context.Context, state *EngineState, cfg Config, logger *slog.Logger) (scorePhaseResult, error) {
+	if err := checkRunContext(ctx, logger, "scoring"); err != nil {
+		return scorePhaseResult{}, err
+	}
 
 	state.EffectiveStage = effectiveStage(state.Context)
-	addTrace(&state, "stage_mapping", "ok", map[string]any{
+	addTrace(state, "stage_mapping", "ok", map[string]any{
 		"branch_type":     state.Context.BranchType,
 		"pipeline_stage":  state.Context.PipelineStage,
 		"environment":     state.Context.Environment,
@@ -89,7 +134,7 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 		unknownErrs := unknownSignalValidationErrors(state.Context, state.ScanDetectedAt)
 		if len(unknownErrs) > 0 {
 			state.ValidationErrors = append(state.ValidationErrors, unknownErrs...)
-			addTrace(&state, "unknown_signal_mode", "validation_error", map[string]any{
+			addTrace(state, "unknown_signal_mode", "validation_error", map[string]any{
 				"mode":   state.Policy.Defaults.UnknownSignalMode,
 				"errors": append([]string{}, unknownErrs...),
 			})
@@ -98,7 +143,7 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 
 	hardStops := applyHardStops(state.Findings, state.Policy)
 	state.HardStopDomains = hardStops
-	addTrace(&state, "hard_stop", "ok", map[string]any{
+	addTrace(state, "hard_stop", "ok", map[string]any{
 		"triggered": len(hardStops) > 0,
 		"domains":   hardStops,
 	})
@@ -106,13 +151,13 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 	if err := validateAcceptedRiskSchema(state.AcceptedRisk); err != nil {
 		state.ValidationErrors = append(state.ValidationErrors, err.Error())
 	}
-	applyAcceptedRisk(&state)
-	addTrace(&state, "governance", "ok", map[string]any{
+	applyAcceptedRisk(state)
+	addTrace(state, "governance", "ok", map[string]any{
 		"records_evaluated": state.GovernanceSummary.RecordsEvaluated,
 		"records_applied":   state.GovernanceSummary.RecordsApplied,
 		"invalid_records":   state.GovernanceSummary.InvalidRecords,
 	})
-	newFindingsOnlyActive := applyNewFindingsOnlyMode(&state, cfg)
+	newFindingsOnlyActive := applyNewFindingsOnlyMode(state, cfg)
 
 	ruleRisk, minDecision, trustFloor, ruleStepIDs := applyPolicyRules(state.Policy, state.Context, state.EffectiveStage)
 
@@ -121,14 +166,14 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 		state.Findings[i].FindingRiskScore = scoreFinding(state.Findings[i], state.Context, state.Policy, state.EffectiveStage)
 	}
 	state.Risk = aggregateOverall(state.Findings, state.Context, state.EffectiveStage, state.Trust, ruleRisk, newFindingsOnlyActive)
-	addTrace(&state, "scoring", "ok", map[string]any{
+	addTrace(state, "scoring", "ok", map[string]any{
 		"trust_score":              state.Trust.Score,
 		"trust_penalty":            state.Trust.RiskPenalty,
 		"overall_risk_score":       state.Risk.OverallScore,
 		"new_findings_only_active": newFindingsOnlyActive,
 	})
 	noiseSummary := computeNoiseBudgetSummary(state.Findings, state.Policy, state.EffectiveStage, len(state.HardStopDomains) > 0)
-	addTrace(&state, "noise_budget", noiseBudgetTraceResult(noiseSummary), map[string]any{
+	addTrace(state, "noise_budget", noiseBudgetTraceResult(noiseSummary), map[string]any{
 		"enabled":                 noiseSummary.Enabled,
 		"bypassed":                noiseSummary.Bypassed,
 		"stage_supported":         noiseSummary.StageSupported,
@@ -142,7 +187,19 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 		"displayed_count":         noiseSummary.DisplayedCount,
 	})
 	if err := checkRunContext(ctx, logger, "scoring"); err != nil {
-		return Report{}, err
+		return scorePhaseResult{}, err
+	}
+
+	return scorePhaseResult{
+		minDecision: minDecision,
+		trustFloor:  trustFloor,
+		ruleStepIDs: ruleStepIDs,
+	}, nil
+}
+
+func decidePhase(ctx context.Context, state *EngineState, scoreResult scorePhaseResult, logger *slog.Logger) error {
+	if err := checkRunContext(ctx, logger, "decision"); err != nil {
+		return err
 	}
 
 	for _, errMsg := range state.ValidationErrors {
@@ -150,18 +207,20 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 			state.ValidationFailed = true
 		}
 	}
-	state.Decision = decide(&state, minDecision, trustFloor)
+	state.Decision = decide(state, scoreResult.minDecision, scoreResult.trustFloor)
 	state.ExitCode = decisionExitCode(state.Decision)
+	state.RecommendedSteps = collectRecommendedSteps(*state, scoreResult.ruleStepIDs)
+	return nil
+}
 
-	steps := collectRecommendedSteps(state, ruleStepIDs)
-	state.RecommendedSteps = steps
-
-	sortFindingsDeterministically(state.Findings)
-	runID := stableRunID(state.InputDigests, state.EffectiveStage)
-	report := buildReport(state, runID)
+func writePhase(ctx context.Context, cfg Config, state *EngineState, logger *slog.Logger) (Report, error) {
 	if err := checkRunContext(ctx, logger, "write_outputs"); err != nil {
 		return Report{}, err
 	}
+
+	sortFindingsDeterministically(state.Findings)
+	runID := stableRunID(state.InputDigests, state.EffectiveStage)
+	report := buildReport(*state, runID)
 
 	if err := writeReportJSON(cfg.OutJSONPath, report); err != nil {
 		if logger != nil {
@@ -173,7 +232,7 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 	htmlWritten := false
 	if cfg.WriteHTML {
 		if err := writeReportHTML(cfg.OutHTMLPath, report); err != nil {
-			addTrace(&state, "report_html", "error", map[string]any{"error": err.Error()})
+			addTrace(state, "report_html", "error", map[string]any{"error": err.Error()})
 			if logger != nil {
 				logger.Warn("run.report_html.error", "error", err.Error(), "path", cfg.OutHTMLPath)
 			}
