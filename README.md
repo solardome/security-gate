@@ -93,7 +93,8 @@ Active development. Core contracts are implemented and validated by unit tests, 
 
 ## Requirements
 
-- Go `1.25+`
+- Go `1.25+` language compatibility floor
+- Repository toolchain pin: `go1.26.2`
 - Local files for:
   - scanner reports (JSON)
   - context (YAML)
@@ -349,12 +350,13 @@ Supporting docs:
 ## Development and Validation
 
 Local development: `make check`
+Parser hardening: `make fuzz`
 
 Run required checks:
 
 ```bash
 go test ./...
-GOTOOLCHAIN=go1.25.4 go test -race ./...
+GOTOOLCHAIN=go1.26.2 go test -race ./...
 ./examples/simulation/simulate.sh
 ```
 
