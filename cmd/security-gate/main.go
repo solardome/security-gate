@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/solardome/security-gate/internal/securitygate"
 )
@@ -52,7 +55,10 @@ func main() {
 	}
 	flag.Parse()
 
-	report, err := securitygate.Run(securitygate.Config{
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	report, err := securitygate.Run(ctx, securitygate.Config{
 		ScanPaths:         scans,
 		BaselineScanPaths: baselineScans,
 		NewFindingsOnly:   newFindingsOnly,

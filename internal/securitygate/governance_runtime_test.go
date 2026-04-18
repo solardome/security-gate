@@ -1,6 +1,7 @@
 package securitygate
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -25,7 +26,7 @@ func TestAcceptedRiskScopeTypeDisallowedByPolicy(t *testing.T) {
 	pol.ExceptionRules.AllowScopeTypes = []string{"finding_id"}
 	writeYAMLFile(t, paths.Policy, pol)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:        []string{paths.Scan},
 		ContextPath:      paths.Context,
 		PolicyPath:       paths.Policy,
@@ -86,7 +87,7 @@ func TestReleaseCriticalApprovalUsesEffectiveStage(t *testing.T) {
 	}
 	writeYAMLFile(t, paths.AcceptedRisk, ar)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:        []string{paths.Scan},
 		ContextPath:      paths.Context,
 		PolicyPath:       paths.Policy,
@@ -180,7 +181,7 @@ func TestUnknownSignalModeBlockRelease(t *testing.T) {
 	pol.Defaults.UnknownSignalMode = "block_release"
 	writeYAMLFile(t, paths.Policy, pol)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -239,7 +240,7 @@ func TestUnknownSignalModeBlockReleaseAllowsKnownScanTimestampWithoutFindings(t 
 		t.Fatal(err)
 	}
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{scanPath},
 		ContextPath: contextPath,
 		PolicyPath:  policyPath,
@@ -273,7 +274,7 @@ func TestDecisionTraceVerbosityMinimal(t *testing.T) {
 	pol.Defaults.DecisionTraceVerbosity = "minimal"
 	writeYAMLFile(t, paths.Policy, pol)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -310,7 +311,7 @@ func TestInvalidScanEnvelopeStageBehavior(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		report, err := Run(Config{
+		report, err := Run(context.Background(), Config{
 			ScanPaths:   []string{paths.Scan},
 			ContextPath: paths.Context,
 			PolicyPath:  paths.Policy,
@@ -348,7 +349,7 @@ func TestInvalidScanEnvelopeStageBehavior(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		report, err := Run(Config{
+		report, err := Run(context.Background(), Config{
 			ScanPaths:   []string{paths.Scan},
 			ContextPath: paths.Context,
 			PolicyPath:  paths.Policy,
@@ -399,7 +400,7 @@ func TestRunAcceptsMinimalScannerEnvelopesWithoutParseFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			report, err := Run(Config{
+			report, err := Run(context.Background(), Config{
 				ScanPaths:   []string{paths.Scan},
 				ContextPath: paths.Context,
 				PolicyPath:  paths.Policy,
@@ -522,7 +523,7 @@ func TestAcceptedRiskCanonicalScannerMatchesSarifVariant(t *testing.T) {
 	}
 	writeYAMLFile(t, paths.AcceptedRisk, ar)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:        []string{paths.Scan},
 		ContextPath:      paths.Context,
 		PolicyPath:       paths.Policy,
@@ -599,7 +600,7 @@ func TestAcceptedRiskScannerTrivyMatchesEvenWithDifferentContextScanner(t *testi
 	}
 	writeYAMLFile(t, paths.AcceptedRisk, ar)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:        []string{paths.Scan},
 		ContextPath:      paths.Context,
 		PolicyPath:       paths.Policy,
@@ -704,7 +705,7 @@ func TestNewFindingsOnlyIgnoresBaselineMatchesInPR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:         []string{paths.Scan},
 		BaselineScanPaths: []string{baselinePath},
 		NewFindingsOnly:   true,
@@ -745,7 +746,7 @@ func TestNewFindingsOnlyHardStopStillBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:         []string{paths.Scan},
 		BaselineScanPaths: []string{baselinePath},
 		NewFindingsOnly:   true,
@@ -783,7 +784,7 @@ func TestNewFindingsOnlyUnsupportedStageBlocksRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:         []string{paths.Scan},
 		BaselineScanPaths: []string{baselinePath},
 		NewFindingsOnly:   true,
@@ -812,7 +813,7 @@ func TestNewFindingsOnlyRequiresBaselineScan(t *testing.T) {
 		WithAR:        false,
 		ExpiredAR:     false,
 	})
-	_, err := Run(Config{
+	_, err := Run(context.Background(), Config{
 		ScanPaths:       []string{paths.Scan},
 		NewFindingsOnly: true,
 		ContextPath:     paths.Context,
@@ -844,7 +845,7 @@ func TestNoiseBudgetDoesNotAffectDecision(t *testing.T) {
 	polEnabled.NoiseBudget.SuppressBelowSeverity = "high"
 	writeYAMLFile(t, paths.Policy, polEnabled)
 
-	reportEnabled, err := Run(Config{
+	reportEnabled, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -859,7 +860,7 @@ func TestNoiseBudgetDoesNotAffectDecision(t *testing.T) {
 	polDisabled := polEnabled
 	polDisabled.NoiseBudget.Enabled = false
 	writeYAMLFile(t, paths.Policy, polDisabled)
-	reportDisabled, err := Run(Config{
+	reportDisabled, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -899,7 +900,7 @@ func TestBaselineScanIgnoredWhenNewFindingsOnlyDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	withBaseline, err := Run(Config{
+	withBaseline, err := Run(context.Background(), Config{
 		ScanPaths:         []string{paths.Scan},
 		BaselineScanPaths: []string{baselinePath},
 		NewFindingsOnly:   false,
@@ -912,7 +913,7 @@ func TestBaselineScanIgnoredWhenNewFindingsOnlyDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	withoutBaseline, err := Run(Config{
+	withoutBaseline, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -951,7 +952,7 @@ func TestInputDigestsDifferentiatePrimaryAndBaselineScans(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:         []string{paths.Scan},
 		BaselineScanPaths: []string{baselinePath},
 		NewFindingsOnly:   true,

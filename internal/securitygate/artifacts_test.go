@@ -2,6 +2,7 @@ package securitygate
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ func TestRunWritesChecksumsAndRunLog(t *testing.T) {
 	outChecksums := filepath.Join(dir, "result.checksums.sha256")
 	outRunLog := filepath.Join(dir, "result.run.log")
 
-	_, err := Run(Config{
+	_, err := Run(context.Background(), Config{
 		ScanPaths:     []string{paths.Scan},
 		ContextPath:   paths.Context,
 		PolicyPath:    paths.Policy,
@@ -95,7 +96,7 @@ func TestRunNoHTMLChecksumsContainOnlyJSON(t *testing.T) {
 
 	outJSON := filepath.Join(dir, "only-json.report.json")
 	outChecksums := filepath.Join(dir, "only-json.checksums.sha256")
-	_, err := Run(Config{
+	_, err := Run(context.Background(), Config{
 		ScanPaths:     []string{paths.Scan},
 		ContextPath:   paths.Context,
 		PolicyPath:    paths.Policy,

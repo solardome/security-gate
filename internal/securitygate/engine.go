@@ -1,11 +1,13 @@
 package securitygate
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -15,7 +17,10 @@ import (
 	enginereport "github.com/solardome/security-gate/internal/report"
 )
 
-func Run(cfg Config) (Report, error) {
+func Run(ctx context.Context, cfg Config) (Report, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if strings.TrimSpace(cfg.OutJSONPath) == "" {
 		cfg.OutJSONPath = "report.json"
 	}
@@ -49,10 +54,13 @@ func Run(cfg Config) (Report, error) {
 	}
 
 	state := EngineState{Now: time.Now().UTC()}
-	if err := loadInputs(&state, cfg); err != nil {
+	if err := loadInputs(ctx, &state, cfg); err != nil {
 		if logger != nil {
 			logger.Warn("run.load_inputs.error", "error", err.Error())
 		}
+		return Report{}, err
+	}
+	if err := checkRunContext(ctx, logger, "load_inputs"); err != nil {
 		return Report{}, err
 	}
 	if logger != nil {
@@ -130,6 +138,9 @@ func Run(cfg Config) (Report, error) {
 		"suppressed_total":        noiseSummary.SuppressedTotal,
 		"displayed_count":         noiseSummary.DisplayedCount,
 	})
+	if err := checkRunContext(ctx, logger, "scoring"); err != nil {
+		return Report{}, err
+	}
 
 	for _, errMsg := range state.ValidationErrors {
 		if errMsg != "" {
@@ -145,6 +156,9 @@ func Run(cfg Config) (Report, error) {
 	sortFindingsDeterministically(state.Findings)
 	runID := stableRunID(state.InputDigests, state.EffectiveStage)
 	report := buildReport(state, runID)
+	if err := checkRunContext(ctx, logger, "write_outputs"); err != nil {
+		return Report{}, err
+	}
 
 	if err := writeReportJSON(cfg.OutJSONPath, report); err != nil {
 		if logger != nil {
@@ -187,7 +201,17 @@ func Run(cfg Config) (Report, error) {
 	return report, nil
 }
 
-func loadInputs(state *EngineState, cfg Config) error {
+func checkRunContext(ctx context.Context, logger *slog.Logger, phase string) error {
+	if err := ctx.Err(); err != nil {
+		if logger != nil {
+			logger.Warn("run.cancelled", "phase", phase, "error", err.Error())
+		}
+		return fmt.Errorf("run cancelled during %s: %w", phase, err)
+	}
+	return nil
+}
+
+func loadInputs(ctx context.Context, state *EngineState, cfg Config) error {
 	if len(cfg.ScanPaths) == 0 {
 		return errors.New("at least one --scan path is required")
 	}
@@ -220,11 +244,11 @@ func loadInputs(state *EngineState, cfg Config) error {
 			state.ValidationErrors = append(state.ValidationErrors, err.Error())
 		}
 	}
-	if err := loadScans(state, cfg.ScanPaths); err != nil {
+	if err := loadScans(ctx, state, cfg.ScanPaths); err != nil {
 		state.ValidationErrors = append(state.ValidationErrors, err.Error())
 	}
 	if cfg.NewFindingsOnly {
-		if err := loadBaselineScans(state, cfg.BaselineScanPaths); err != nil {
+		if err := loadBaselineScans(ctx, state, cfg.BaselineScanPaths); err != nil {
 			state.ValidationErrors = append(state.ValidationErrors, err.Error())
 		}
 	}
@@ -310,9 +334,14 @@ func loadContextAuto(state *EngineState) error {
 	return nil
 }
 
-func loadScans(state *EngineState, paths []string) error {
+func loadScans(ctx context.Context, state *EngineState, paths []string) error {
 	all := []AdapterFinding{}
 	for _, p := range paths {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		hash, b, err := fileSHA256(p)
 		state.InputDigests = append(state.InputDigests, InputDigest{Kind: "scan_json", Role: "primary", Path: p, SHA256: hash, ReadOK: err == nil})
 		if err != nil {
@@ -331,9 +360,14 @@ func loadScans(state *EngineState, paths []string) error {
 	return nil
 }
 
-func loadBaselineScans(state *EngineState, paths []string) error {
+func loadBaselineScans(ctx context.Context, state *EngineState, paths []string) error {
 	all := []AdapterFinding{}
 	for _, p := range paths {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		hash, b, err := fileSHA256(p)
 		state.InputDigests = append(state.InputDigests, InputDigest{Kind: "scan_json", Role: "baseline", Path: p, SHA256: hash, ReadOK: err == nil})
 		if err != nil {

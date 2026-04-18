@@ -1,7 +1,9 @@
 package securitygate
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -61,7 +63,7 @@ func TestHardStopPrecedenceBlocks(t *testing.T) {
 		WithAR:        false,
 		ExpiredAR:     false,
 	})
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -89,7 +91,7 @@ func TestAcceptedRiskExpiredStageBehavior(t *testing.T) {
 			WithAR:        true,
 			ExpiredAR:     true,
 		})
-		report, err := Run(Config{
+		report, err := Run(context.Background(), Config{
 			ScanPaths:        []string{paths.Scan},
 			ContextPath:      paths.Context,
 			PolicyPath:       paths.Policy,
@@ -117,7 +119,7 @@ func TestAcceptedRiskExpiredStageBehavior(t *testing.T) {
 			WithAR:        true,
 			ExpiredAR:     true,
 		})
-		report, err := Run(Config{
+		report, err := Run(context.Background(), Config{
 			ScanPaths:        []string{paths.Scan},
 			ContextPath:      paths.Context,
 			PolicyPath:       paths.Policy,
@@ -147,7 +149,7 @@ func TestReportAcceptedRiskJSONContract(t *testing.T) {
 		ExpiredAR:     false,
 	})
 	outJSON := filepath.Join(dir, "out.json")
-	_, err := Run(Config{
+	_, err := Run(context.Background(), Config{
 		ScanPaths:        []string{paths.Scan},
 		ContextPath:      paths.Context,
 		PolicyPath:       paths.Policy,
@@ -184,6 +186,32 @@ func TestReportAcceptedRiskJSONContract(t *testing.T) {
 	}
 	if len(ar) != 3 {
 		t.Fatalf("accepted_risk expected exactly 3 fields, got %d: %v", len(ar), ar)
+	}
+}
+
+func TestRunCancelledReturnsContextError(t *testing.T) {
+	dir := t.TempDir()
+	paths := writeScenario(t, dir, scenarioConfig{
+		BranchType:    "feature",
+		PipelineStage: "pr",
+		Environment:   "ci",
+		Severity:      "low",
+		DomainID:      "VULN_GENERIC",
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := Run(ctx, Config{
+		ScanPaths:   []string{paths.Scan},
+		ContextPath: paths.Context,
+		PolicyPath:  paths.Policy,
+		OutJSONPath: filepath.Join(dir, "out.json"),
+		OutHTMLPath: filepath.Join(dir, "out.html"),
+		WriteHTML:   false,
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() error = %v, want context canceled", err)
 	}
 }
 
@@ -247,7 +275,7 @@ func TestRunSupportsSARIFInput(t *testing.T) {
 	}
 	writeJSONFile(t, paths.Scan, sarifScan)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -295,7 +323,7 @@ func TestRunSupportsSnykInput(t *testing.T) {
 	}
 	writeJSONFile(t, paths.Scan, snykScan)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -343,7 +371,7 @@ func TestRunSupportsCheckmarxInput(t *testing.T) {
 	}
 	writeJSONFile(t, paths.Scan, checkmarxScan)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,
@@ -397,7 +425,7 @@ func TestRunSupportsSonarGenericInput(t *testing.T) {
 	}
 	writeJSONFile(t, paths.Scan, sonarScan)
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: paths.Context,
 		PolicyPath:  paths.Policy,

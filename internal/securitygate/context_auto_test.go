@@ -1,6 +1,7 @@
 package securitygate
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 )
@@ -95,7 +96,7 @@ func TestRunWithContextAuto(t *testing.T) {
 	t.Setenv("GITHUB_EVENT_NAME", "pull_request")
 	t.Setenv("GITHUB_HEAD_REF", "feature/my-pr")
 
-	report, err := Run(Config{
+	report, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: "",
 		AutoContext: true,
@@ -135,7 +136,7 @@ func TestRunWithoutContextAndWithoutAutoFails(t *testing.T) {
 		WithAR:        false,
 		ExpiredAR:     false,
 	})
-	_, err := Run(Config{
+	_, err := Run(context.Background(), Config{
 		ScanPaths:   []string{paths.Scan},
 		ContextPath: "",
 		AutoContext: false,
