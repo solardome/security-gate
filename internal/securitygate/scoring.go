@@ -1,17 +1,21 @@
 package securitygate
 
-import enginescoring "github.com/solardome/security-gate/internal/scoring"
+import (
+	"time"
+
+	enginescoring "github.com/solardome/security-gate/internal/scoring"
+)
 
 func effectiveStage(ctx Context) string {
 	return enginescoring.EffectiveStage(toScoringContext(ctx))
 }
 
-func trustScore(ctx Context, pol Policy, findings []UnifiedFinding) TrustResult {
+func trustScore(ctx Context, pol Policy, findings []UnifiedFinding, scannerVersions, scanDetectedAt []string, now time.Time) TrustResult {
 	sf := make([]enginescoring.Finding, 0, len(findings))
 	for _, f := range findings {
 		sf = append(sf, toScoringFinding(f))
 	}
-	res := enginescoring.TrustScore(toScoringContext(ctx), toScoringPolicy(pol), sf)
+	res := enginescoring.TrustScoreAt(toScoringContext(ctx), toScoringPolicy(pol), sf, scannerVersions, scanDetectedAt, now)
 	penalties := make([]TrustPenalty, 0, len(res.Penalties))
 	for _, p := range res.Penalties {
 		penalties = append(penalties, TrustPenalty{Code: p.Code, Value: p.Value})
@@ -67,7 +71,6 @@ func toScoringContext(ctx Context) enginescoring.Context {
 		RepoCriticality: ctx.RepoCriticality,
 		Exposure:        ctx.Exposure,
 		ChangeType:      ctx.ChangeType,
-		ScannerVersion:  ctx.Scanner.Version,
 		ArtifactSigned:  ctx.Provenance.ArtifactSigned,
 		ProvenanceLevel: ctx.Provenance.Level,
 		BuildIntegrity:  ctx.Provenance.BuildContextIntegrity,
@@ -91,13 +94,15 @@ func toScoringPolicy(pol Policy) enginescoring.Policy {
 			Trust20to39: pol.TrustTightening.AdditionalRiskPenalties.Trust20to39,
 			Trust0to19:  pol.TrustTightening.AdditionalRiskPenalties.Trust0to19,
 		},
-		SeverityBoosts: boosts,
+		SeverityBoosts:         boosts,
+		DisableTrustTightening: !pol.TrustTightening.Enabled,
 	}
 }
 
 func toScoringFinding(f UnifiedFinding) enginescoring.Finding {
 	return enginescoring.Finding{
 		DetectedAt:       f.DetectedAt,
+		ScannerVersion:   f.Scanner.Version,
 		Severity:         f.Class.Severity,
 		ExploitMaturity:  f.Class.ExploitMaturity,
 		Reachability:     f.Class.Reachability,

@@ -523,6 +523,7 @@
             <li>Deterministic core engine; AI output cannot change decisions.</li>
             <li>Untrusted input handling with SHA-256 provenance.</li>
             <li>Scanner inputs are JSON; policy/accepted-risk inputs are strict YAML; context is YAML or deterministic CI auto-detection.</li>
+            <li>Freshness and expiry checks can be replayed with an explicit RFC3339 evaluation time.</li>
             <li>Branch-primary stage mapping with secondary tightening only.</li>
             <li><code>report.json</code> is authoritative output.</li>
           </ul>
@@ -575,7 +576,7 @@
           </ul>
 
           <h4>Trust/Provenance Flow</h4>
-          <p>Scanner pinning/freshness, signing, provenance level, and context completeness map to deterministic penalties. These produce <code>TrustScore</code>, which tightens risk and stage outcomes.</p>
+          <p>Scanner report pinning/freshness, signing, provenance level, and context completeness map to deterministic penalties. Scanner-version trust comes from scanner report evidence, not context overrides. These produce <code>TrustScore</code>, which tightens risk and stage outcomes when trust tightening is enabled.</p>
         </div>
       </section>
 
@@ -619,6 +620,7 @@ HS_KNOWN_EXPLOITED_UNPATCHED</code></pre>
             <li><code>FindingRiskScore</code> remains in <code>[0,100]</code>.</li>
             <li><code>OverallRiskScore = clamp(max(FindingRiskScore) + context_modifiers + TrustPenalty, 0, 100)</code>.</li>
             <li><code>TrustScore = clamp(100 - sum(penalties), 0, 100)</code>.</li>
+            <li><code>report.json.generated_at</code> records the run evaluation time used for scan freshness and accepted-risk expiry.</li>
             <li>Unknown or missing signals never reduce risk.</li>
           </ul>
 
@@ -692,7 +694,7 @@ rules</code></pre>
           <h4>Exception and Trust Controls</h4>
           <ul>
             <li>Release/deploy approval requirements for exception usage.</li>
-            <li>Trust floors plus trust-band risk penalties.</li>
+            <li>Trust floors plus trust-band risk penalties when <code>trust_tightening.enabled=true</code>.</li>
             <li>Unknown schema or invalid fields are validation failures.</li>
           </ul>
         </div>
@@ -733,13 +735,13 @@ records:
   - id
     status
     owner
-    approvers
     ticket
     rationale
     scope
-    constraints
     timeline
-    metadata</code></pre>
+    approvers      # optional
+    constraints    # optional filters
+    metadata       # optional audit metadata</code></pre>
 
           <h4>Validation Rules</h4>
           <ul>

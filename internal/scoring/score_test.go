@@ -13,40 +13,60 @@ func TestTrustScoreFreshnessPenalty(t *testing.T) {
 		RepoCriticality: "high",
 		Exposure:        "internet",
 		ChangeType:      "application",
-		ScannerVersion:  "0.50.0",
 		ArtifactSigned:  "yes",
 		ProvenanceLevel: "verified",
 		BuildIntegrity:  "verified",
 	}
 	pol := Policy{ScanFreshnessHours: 24}
+	now := time.Now().UTC()
 
 	t.Run("unknown_detected_at_penalized", func(t *testing.T) {
-		res := TrustScore(ctx, pol, []Finding{{DetectedAt: "unknown"}})
+		res := TrustScoreAt(ctx, pol, []Finding{{DetectedAt: "unknown", ScannerVersion: "0.50.0"}}, nil, nil, now)
 		if !hasTrustPenalty(res, "SCAN_FRESHNESS_UNKNOWN_OR_STALE") {
 			t.Fatalf("expected freshness penalty, got %+v", res.Penalties)
 		}
 	})
 
 	t.Run("stale_detected_at_penalized", func(t *testing.T) {
-		res := TrustScore(ctx, pol, []Finding{{DetectedAt: "2010-01-01T00:00:00Z"}})
+		res := TrustScoreAt(ctx, pol, []Finding{{DetectedAt: "2010-01-01T00:00:00Z", ScannerVersion: "0.50.0"}}, nil, nil, now)
 		if !hasTrustPenalty(res, "SCAN_FRESHNESS_UNKNOWN_OR_STALE") {
 			t.Fatalf("expected freshness penalty, got %+v", res.Penalties)
 		}
 	})
 
 	t.Run("fresh_detected_at_not_penalized", func(t *testing.T) {
-		res := TrustScore(ctx, pol, []Finding{{DetectedAt: time.Now().UTC().Add(-1 * time.Hour).Format(time.RFC3339)}})
+		res := TrustScoreAt(ctx, pol, []Finding{{DetectedAt: now.Add(-1 * time.Hour).Format(time.RFC3339), ScannerVersion: "0.50.0"}}, nil, nil, now)
 		if hasTrustPenalty(res, "SCAN_FRESHNESS_UNKNOWN_OR_STALE") {
 			t.Fatalf("did not expect freshness penalty, got %+v", res.Penalties)
 		}
 	})
 
 	t.Run("future_detected_at_penalized", func(t *testing.T) {
-		res := TrustScore(ctx, pol, []Finding{{DetectedAt: time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)}})
+		res := TrustScoreAt(ctx, pol, []Finding{{DetectedAt: now.Add(24 * time.Hour).Format(time.RFC3339), ScannerVersion: "0.50.0"}}, nil, nil, now)
 		if !hasTrustPenalty(res, "SCAN_FRESHNESS_UNKNOWN_OR_STALE") {
 			t.Fatalf("expected freshness penalty for future timestamp, got %+v", res.Penalties)
 		}
 	})
+}
+
+func TestTrustScoreFreshnessUsesScanLevelTimestamp(t *testing.T) {
+	now := time.Date(2026, 2, 19, 12, 0, 0, 0, time.UTC)
+	ctx := Context{
+		BranchType:      "feature",
+		PipelineStage:   "pr",
+		Environment:     "ci",
+		RepoCriticality: "high",
+		Exposure:        "internet",
+		ChangeType:      "application",
+		ArtifactSigned:  "yes",
+		ProvenanceLevel: "verified",
+		BuildIntegrity:  "verified",
+	}
+	pol := Policy{ScanFreshnessHours: 24}
+	res := TrustScoreAt(ctx, pol, nil, []string{"0.50.0"}, []string{now.Add(-1 * time.Hour).Format(time.RFC3339)}, now)
+	if hasTrustPenalty(res, "SCAN_FRESHNESS_UNKNOWN_OR_STALE") {
+		t.Fatalf("did not expect freshness penalty from fresh scan-level timestamp, got %+v", res.Penalties)
+	}
 }
 
 func hasTrustPenalty(res TrustResult, code string) bool {
@@ -92,6 +112,29 @@ func TestTrustPenaltyBandDefaultsWhenZero(t *testing.T) {
 	got = TrustPenaltyBand(10, TrustBandPenalties{})
 	if got != 20 {
 		t.Fatalf("expected default band 20 for score 10, got %d", got)
+	}
+}
+
+func TestTrustScoreCanDisableTrustTighteningRiskPenalty(t *testing.T) {
+	now := time.Date(2026, 2, 19, 12, 0, 0, 0, time.UTC)
+	ctx := Context{
+		BranchType:      "feature",
+		PipelineStage:   "pr",
+		Environment:     "ci",
+		RepoCriticality: "high",
+		Exposure:        "internet",
+		ChangeType:      "application",
+		ArtifactSigned:  "yes",
+		ProvenanceLevel: "verified",
+		BuildIntegrity:  "verified",
+	}
+	pol := Policy{ScanFreshnessHours: 24, DisableTrustTightening: true}
+	res := TrustScoreAt(ctx, pol, []Finding{{DetectedAt: now.Add(-1 * time.Hour).Format(time.RFC3339), ScannerVersion: "unknown"}}, nil, nil, now)
+	if !hasTrustPenalty(res, "SCANNER_VERSION_UNKNOWN") {
+		t.Fatalf("expected trust score to still record scanner penalty, got %+v", res.Penalties)
+	}
+	if res.RiskPenalty != 0 {
+		t.Fatalf("expected trust-derived risk penalty disabled, got %d", res.RiskPenalty)
 	}
 }
 
@@ -194,27 +237,23 @@ func TestTrustScorePenaltiesFromScannerVersion(t *testing.T) {
 	findings := []Finding{{DetectedAt: freshAt}}
 
 	t.Run("missing_version_penalized", func(t *testing.T) {
-		ctx := base
-		ctx.ScannerVersion = ""
-		res := TrustScore(ctx, pol, findings)
+		res := TrustScore(base, pol, findings)
 		if !hasTrustPenalty(res, "SCANNER_VERSION_UNKNOWN") {
 			t.Fatalf("expected SCANNER_VERSION_UNKNOWN, got %+v", res.Penalties)
 		}
 	})
 
 	t.Run("latest_tag_penalized", func(t *testing.T) {
-		ctx := base
-		ctx.ScannerVersion = "latest"
-		res := TrustScore(ctx, pol, findings)
+		versionedFindings := []Finding{{DetectedAt: freshAt, ScannerVersion: "latest"}}
+		res := TrustScore(base, pol, versionedFindings)
 		if !hasTrustPenalty(res, "SCANNER_VERSION_UNPINNED") {
 			t.Fatalf("expected SCANNER_VERSION_UNPINNED, got %+v", res.Penalties)
 		}
 	})
 
 	t.Run("pinned_version_not_penalized", func(t *testing.T) {
-		ctx := base
-		ctx.ScannerVersion = "0.49.1"
-		res := TrustScore(ctx, pol, findings)
+		versionedFindings := []Finding{{DetectedAt: freshAt, ScannerVersion: "0.49.1"}}
+		res := TrustScore(base, pol, versionedFindings)
 		if hasTrustPenalty(res, "SCANNER_VERSION_UNKNOWN") || hasTrustPenalty(res, "SCANNER_VERSION_UNPINNED") {
 			t.Fatalf("did not expect version penalty, got %+v", res.Penalties)
 		}
@@ -226,10 +265,10 @@ func TestTrustScoreArtifactSignedPenalty(t *testing.T) {
 	ctx := Context{
 		BranchType: "feature", PipelineStage: "pr", Environment: "ci",
 		RepoCriticality: "high", Exposure: "internet", ChangeType: "application",
-		ScannerVersion: "1.0.0", ProvenanceLevel: "verified", BuildIntegrity: "verified",
+		ProvenanceLevel: "verified", BuildIntegrity: "verified",
 	}
 	pol := Policy{ScanFreshnessHours: 24}
-	findings := []Finding{{DetectedAt: freshAt}}
+	findings := []Finding{{DetectedAt: freshAt, ScannerVersion: "1.0.0"}}
 
 	ctx.ArtifactSigned = "no"
 	res := TrustScore(ctx, pol, findings)
@@ -249,10 +288,10 @@ func TestTrustScoreProvenancePenalties(t *testing.T) {
 	ctx := Context{
 		BranchType: "feature", PipelineStage: "pr", Environment: "ci",
 		RepoCriticality: "high", Exposure: "internet", ChangeType: "application",
-		ScannerVersion: "1.0.0", ArtifactSigned: "yes", BuildIntegrity: "verified",
+		ArtifactSigned: "yes", BuildIntegrity: "verified",
 	}
 	pol := Policy{ScanFreshnessHours: 24}
-	findings := []Finding{{DetectedAt: freshAt}}
+	findings := []Finding{{DetectedAt: freshAt, ScannerVersion: "1.0.0"}}
 
 	for _, level := range []string{"none", "basic"} {
 		ctx.ProvenanceLevel = level
@@ -274,10 +313,10 @@ func TestTrustScoreMissingContextFieldPenalty(t *testing.T) {
 	pol := Policy{ScanFreshnessHours: 24}
 	// All context fields empty → max penalty of 20.
 	ctx := Context{
-		ScannerVersion: "1.0.0", ArtifactSigned: "yes",
+		ArtifactSigned:  "yes",
 		ProvenanceLevel: "verified", BuildIntegrity: "verified",
 	}
-	res := TrustScore(ctx, pol, []Finding{{DetectedAt: freshAt}})
+	res := TrustScore(ctx, pol, []Finding{{DetectedAt: freshAt, ScannerVersion: "1.0.0"}})
 	if !hasTrustPenalty(res, "MISSING_REQUIRED_CONTEXT_FIELDS") {
 		t.Fatalf("expected MISSING_REQUIRED_CONTEXT_FIELDS, got %+v", res.Penalties)
 	}

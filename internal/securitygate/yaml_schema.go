@@ -134,12 +134,12 @@ func validateAcceptedRiskYAML(node *yaml.Node) []schemaError {
 	if records, ok := m["records"]; ok {
 		seq := validateSequenceNode(records, "accepted_risk.records", &errList)
 		for i, item := range seq {
-			r := validateMapNode(item, fmt.Sprintf("accepted_risk.records[%d]", i), []string{"id", "status", "owner", "approvers", "ticket", "rationale", "scope", "constraints", "timeline", "metadata"}, []string{"id", "status", "owner", "approvers", "ticket", "rationale", "scope", "constraints", "timeline", "metadata"}, &errList)
+			r := validateMapNode(item, fmt.Sprintf("accepted_risk.records[%d]", i), []string{"id", "status", "owner", "approvers", "ticket", "rationale", "scope", "constraints", "timeline", "metadata"}, []string{"id", "status", "owner", "ticket", "rationale", "scope", "timeline"}, &errList)
 			if scope, ok := r["scope"]; ok {
 				validateMapNode(scope, fmt.Sprintf("accepted_risk.records[%d].scope", i), []string{"type", "value", "scanner", "repository", "branch_types", "stages"}, []string{"type", "value"}, &errList)
 			}
 			if constraints, ok := r["constraints"]; ok {
-				validateMapNode(constraints, fmt.Sprintf("accepted_risk.records[%d].constraints", i), []string{"max_severity", "environments"}, []string{"max_severity", "environments"}, &errList)
+				validateMapNode(constraints, fmt.Sprintf("accepted_risk.records[%d].constraints", i), []string{"max_severity", "environments"}, nil, &errList)
 			}
 			if timeline, ok := r["timeline"]; ok {
 				validateMapNode(timeline, fmt.Sprintf("accepted_risk.records[%d].timeline", i), []string{"created_at", "expires_at", "sla_days"}, []string{"created_at", "expires_at", "sla_days"}, &errList)

@@ -63,6 +63,17 @@ func firstNonEmpty(v ...string) string {
 	return ""
 }
 
+func resolveEvaluationTime(raw string) (time.Time, error) {
+	if strings.TrimSpace(raw) == "" {
+		return time.Now().UTC(), nil
+	}
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid --evaluation-time: %w", err)
+	}
+	return parsed.UTC(), nil
+}
+
 func contains(values []string, target string) bool {
 	if len(values) == 0 {
 		return true
@@ -163,12 +174,15 @@ func yamlNodeToValue(node *yaml.Node) any {
 	}
 }
 
-func stableRunID(inputs []InputDigest, effectiveStage string) string {
+func stableRunID(inputs []InputDigest, effectiveStage string, evaluationTime time.Time) string {
 	parts := make([]string, 0, len(inputs)+1)
 	for _, in := range inputs {
 		parts = append(parts, in.Kind+":"+firstNonEmpty(in.Role, "-")+":"+in.Path+":"+in.SHA256)
 	}
 	parts = append(parts, "stage:"+effectiveStage)
+	if !evaluationTime.IsZero() {
+		parts = append(parts, "evaluation_time:"+evaluationTime.UTC().Format(time.RFC3339))
+	}
 	sort.Strings(parts)
 	h := sha256.Sum256([]byte(strings.Join(parts, "|")))
 	return hex.EncodeToString(h[:])
@@ -397,7 +411,7 @@ func shouldBlockReleaseOnUnknownSignals(policy Policy, effectiveStage string) bo
 	return normalizeToken(policy.Defaults.UnknownSignalMode) == "block_release" && (effectiveStage == "release" || effectiveStage == "deploy")
 }
 
-func unknownSignalValidationErrors(ctx Context, scanDetectedAt []string) []string {
+func unknownSignalValidationErrors(ctx Context, scanDetectedAt []string, now time.Time) []string {
 	var errs []string
 	contextSignals := map[string]string{
 		"context.branch_type":                        ctx.BranchType,
@@ -417,7 +431,9 @@ func unknownSignalValidationErrors(ctx Context, scanDetectedAt []string) []strin
 			errs = append(errs, "unknown signal in "+field)
 		}
 	}
-	now := time.Now().UTC()
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
 	cutoffFuture := now.Add(5 * time.Minute)
 	hasKnownDetectedAt := false
 	for _, raw := range scanDetectedAt {

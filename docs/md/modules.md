@@ -104,7 +104,8 @@ Purpose:
 Inputs:
 - active normalized findings
 - validated context fields
-- trust signals
+- trust signals, including scanner versions from scanner report evidence
+- run evaluation time for freshness checks
 - policy overlays that affect scoring/tightening
 
 Outputs:

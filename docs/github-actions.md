@@ -22,8 +22,9 @@ The repository ships a composite action at `.github/actions/security-gate/action
 | `policy` | No | `.security-gate/policy.yaml` | Path to policy YAML |
 | `accepted-risk` | No | `''` | Path to accepted-risk YAML |
 | `context` | No | `''` | Path to context YAML. If omitted, uses `--context-auto` |
-| `version` | No | `latest` | Release version to install |
+| `version` | Yes | — | Pinned release tag to install. `latest` is rejected; tags may contain only letters, numbers, dot, underscore, plus, or hyphen |
 | `fail-on-warn` | No | `false` | Fail the step on WARN (exit 1) in addition to BLOCK |
+| `evaluation-time` | No | `''` | RFC3339 evaluation time for deterministic replay |
 
 ### Outputs
 
@@ -37,6 +38,8 @@ The repository ships a composite action at `.github/actions/security-gate/action
 | `report-html-path` | Path to the generated `report.html` |
 
 Reports are automatically uploaded as workflow artifacts (`security-gate-reports`).
+
+The action requires a pinned release tag, rejects mutable or unsafe tag values, and verifies the downloaded binary against the release `SHA256SUMS` asset before execution.
 
 ---
 
@@ -69,6 +72,8 @@ jobs:
         with:
           scan: trivy-report.json
           policy: .security-gate/policy.yaml
+          version: vX.Y.Z
+          evaluation-time: '2026-02-19T12:00:00Z'
 
       - name: Print decision
         if: always()
@@ -113,6 +118,7 @@ jobs:
           baseline-scan: baseline/trivy-main.json
           new-findings-only: 'true'
           policy: .security-gate/policy.yaml
+          version: vX.Y.Z
 ```
 
 ### Multi-Scanner (Trivy + SARIF)
@@ -148,6 +154,7 @@ jobs:
         with:
           scan: 'trivy-report.json, semgrep-report.sarif.json'
           policy: .security-gate/policy.yaml
+          version: vX.Y.Z
 ```
 
 ### Release Gate with Strict Policy
@@ -180,6 +187,7 @@ jobs:
           policy: .security-gate/policy.yaml
           accepted-risk: .security-gate/accepted-risk.yaml
           context: .security-gate/release-context.yaml
+          version: vX.Y.Z
           fail-on-warn: 'true'
 
   release:
@@ -220,6 +228,8 @@ jobs:
     with:
       scan: trivy-report.json
       policy: .security-gate/policy.yaml
+      version: vX.Y.Z
+      evaluation-time: '2026-02-19T12:00:00Z'
 
   deploy:
     needs: gate

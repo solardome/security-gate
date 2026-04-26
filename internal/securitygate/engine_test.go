@@ -6,7 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -37,7 +39,7 @@ func TestRiskMonotonicity(t *testing.T) {
 		Exposure:        "internet",
 		ChangeType:      "application",
 	}
-	trust := trustScore(ctx, pol, nil)
+	trust := trustScore(ctx, pol, nil, []string{"0.50.0"}, []string{time.Now().UTC().Format(time.RFC3339)}, time.Now().UTC())
 
 	f1 := UnifiedFinding{Class: UnifiedClassification{Severity: "low", ExploitMaturity: "none", Reachability: "not_reachable", Confidence: "high", DomainID: "VULN_GENERIC"}}
 	f2 := UnifiedFinding{Class: UnifiedClassification{Severity: "critical", ExploitMaturity: "known_exploited", Reachability: "reachable", Confidence: "high", DomainID: "VULN_GENERIC"}}
@@ -189,6 +191,116 @@ func TestReportAcceptedRiskJSONContract(t *testing.T) {
 	}
 }
 
+func TestTrustUsesScannerReportVersionNotContext(t *testing.T) {
+	dir := t.TempDir()
+	paths := writeScenario(t, dir, scenarioConfig{
+		BranchType:    "feature",
+		PipelineStage: "pr",
+		Environment:   "ci",
+		Severity:      "low",
+		DomainID:      "VULN_GENERIC",
+		WithAR:        false,
+		ExpiredAR:     false,
+	})
+
+	ctx := Context{
+		BranchType:      "feature",
+		PipelineStage:   "pr",
+		Environment:     "ci",
+		RepoCriticality: "high",
+		Exposure:        "internet",
+		ChangeType:      "application",
+		Scanner:         ScannerMeta{Name: "trivy", Version: "999.999.999"},
+		Provenance:      Provenance{ArtifactSigned: "yes", Level: "verified", BuildContextIntegrity: "verified"},
+	}
+	writeYAMLFile(t, paths.Context, ctx)
+	writeJSONFile(t, paths.Scan, map[string]any{
+		"ArtifactName": "registry.local/app@sha256:deadbeef",
+		"GeneratedAt":  "2026-02-19T11:00:00Z",
+		"Results": []any{
+			map[string]any{
+				"Target": "app",
+				"Vulnerabilities": []any{
+					map[string]any{
+						"VulnerabilityID": "CVE-2025-1111",
+						"PkgName":         "openssl",
+						"Severity":        "LOW",
+						"Title":           "openssl issue",
+						"DomainID":        "VULN_GENERIC",
+					},
+				},
+			},
+		},
+	})
+
+	report, err := Run(context.Background(), Config{
+		ScanPaths:      []string{paths.Scan},
+		ContextPath:    paths.Context,
+		PolicyPath:     paths.Policy,
+		OutJSONPath:    filepath.Join(dir, "out.json"),
+		OutHTMLPath:    filepath.Join(dir, "out.html"),
+		WriteHTML:      false,
+		EvaluationTime: "2026-02-19T12:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reportHasTrustPenalty(report, "SCANNER_VERSION_UNKNOWN") {
+		t.Fatalf("expected scanner version to be derived from scan evidence, got penalties %+v", report.Trust.Penalties)
+	}
+}
+
+func TestEvaluationTimeControlsReportAndFreshness(t *testing.T) {
+	dir := t.TempDir()
+	paths := writeScenario(t, dir, scenarioConfig{
+		BranchType:    "feature",
+		PipelineStage: "pr",
+		Environment:   "ci",
+		Severity:      "low",
+		DomainID:      "VULN_GENERIC",
+		WithAR:        false,
+		ExpiredAR:     false,
+	})
+	writeJSONFile(t, paths.Scan, map[string]any{
+		"ArtifactName": "registry.local/app@sha256:deadbeef",
+		"Scanner":      map[string]any{"Name": "trivy", "Version": "0.50.0"},
+		"GeneratedAt":  "2026-02-19T11:00:00Z",
+		"Results": []any{
+			map[string]any{
+				"Target": "app",
+				"Vulnerabilities": []any{
+					map[string]any{
+						"VulnerabilityID": "CVE-2025-1111",
+						"PkgName":         "openssl",
+						"Severity":        "LOW",
+						"Title":           "openssl issue",
+						"DomainID":        "VULN_GENERIC",
+					},
+				},
+			},
+		},
+	})
+
+	report, err := Run(context.Background(), Config{
+		ScanPaths:      []string{paths.Scan},
+		ContextPath:    paths.Context,
+		PolicyPath:     paths.Policy,
+		OutJSONPath:    filepath.Join(dir, "out.json"),
+		OutHTMLPath:    filepath.Join(dir, "out.html"),
+		WriteHTML:      false,
+		EvaluationTime: "2026-02-19T12:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.GeneratedAt != "2026-02-19T12:00:00Z" {
+		t.Fatalf("expected generated_at to use evaluation time, got %s", report.GeneratedAt)
+	}
+	if reportHasTrustPenalty(report, "SCAN_FRESHNESS_UNKNOWN_OR_STALE") {
+		t.Fatalf("did not expect freshness penalty with explicit evaluation time, got %+v", report.Trust.Penalties)
+	}
+}
+
 func TestRunCancelledReturnsContextError(t *testing.T) {
 	dir := t.TempDir()
 	paths := writeScenario(t, dir, scenarioConfig{
@@ -213,6 +325,38 @@ func TestRunCancelledReturnsContextError(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Run() error = %v, want context canceled", err)
 	}
+}
+
+func TestRunRejectsInvalidEvaluationTime(t *testing.T) {
+	dir := t.TempDir()
+	paths := writeScenario(t, dir, scenarioConfig{
+		BranchType:    "feature",
+		PipelineStage: "pr",
+		Environment:   "ci",
+		Severity:      "low",
+		DomainID:      "VULN_GENERIC",
+	})
+	_, err := Run(context.Background(), Config{
+		ScanPaths:      []string{paths.Scan},
+		ContextPath:    paths.Context,
+		PolicyPath:     paths.Policy,
+		OutJSONPath:    filepath.Join(dir, "out.json"),
+		OutHTMLPath:    filepath.Join(dir, "out.html"),
+		WriteHTML:      false,
+		EvaluationTime: "not-rfc3339",
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid --evaluation-time") {
+		t.Fatalf("expected invalid evaluation-time error, got %v", err)
+	}
+}
+
+func reportHasTrustPenalty(report Report, code string) bool {
+	for _, p := range report.Trust.Penalties {
+		if p.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 func TestLoadPolicyWrapsSentinelError(t *testing.T) {

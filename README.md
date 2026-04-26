@@ -11,9 +11,9 @@
 applies a deterministic policy engine, and emits auditable `ALLOW` / `WARN` / `BLOCK`
 release decisions with full decision traces.
 
-Built as a sandbox for practicing production-quality Go patterns: interface-based
-scanner adapters, structured logging via `log/slog`, input hashing for reproducibility,
-context propagation, and comprehensive test coverage including fuzz tests for parsers.
+Built around production-oriented Go patterns: interface-based scanner adapters,
+structured logging via `log/slog`, input hashing for reproducibility, context
+propagation, and comprehensive test coverage including fuzz tests for parsers.
 
 Optional non-authoritative LLM output can elaborate recommended next steps without
 ever influencing the decision, score, trust, or exit code.
@@ -215,6 +215,7 @@ security-gate \
   [--out-html report.html] \
   [--checksums checksums.sha256] \
   [--run-log security-gate.run.log] \
+  [--evaluation-time 2026-02-19T12:00:00Z] \
   [--no-html]
 ```
 
@@ -232,6 +233,7 @@ Optional:
 - `--baseline-scan` (repeatable baseline scanner JSON)
 - `--new-findings-only` (only for `pr`/`merge`; requires `--baseline-scan`)
 - output path overrides
+- `--evaluation-time` for deterministic replay of freshness and accepted-risk expiry checks
 - `--no-html` to disable `report.html`
 
 ## Baseline Diff Mode
@@ -281,6 +283,7 @@ Hard-stop domains always force `BLOCK` and cannot be overridden by accepted-risk
   - deterministic CI auto-detection (`--context-auto`)
 - Policy/Accepted Risk: YAML only (`--policy`, `--accepted-risk`)
 - Input files are untrusted and validated strictly
+- Scanner-version trust is derived from scanner report evidence, not context overrides.
 
 See authoritative docs for schemas and rules:
 

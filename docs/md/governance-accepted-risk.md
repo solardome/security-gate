@@ -56,7 +56,7 @@ Top-level:
 - `records` must be a list (may be empty).
 
 Record requirements:
-- `id`, `owner`, `ticket`, `rationale`, `scope`, `timeline` are required.
+- `id`, `status`, `owner`, `ticket`, `rationale`, `scope`, `timeline` are required.
 - `status=active` records are eligible for matching.
 - `expires_at` must be RFC3339 and strictly greater than `created_at`.
 - `sla_days` must be positive integer.
@@ -70,6 +70,7 @@ Scope matching:
 Additional scope filters:
 - `repository`, `branch_types`, `stages`, `constraints.environments` must all match current context.
 - if any filter is absent, treat as wildcard for that filter.
+- `approvers`, `constraints`, and `metadata` are optional; missing filters are treated as wildcards, while missing approvers never satisfy required approval rules.
 
 Scanner filter canonical IDs (`scope.scanner`):
 - `trivy`

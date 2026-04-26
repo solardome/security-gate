@@ -88,6 +88,7 @@ UnifiedFinding:
 ### Normalization Requirements
 - Missing scanner fields must be represented as canonical `unknown` values, not omitted.
 - Finding-level `scanner.name` and `scanner.version` must be adapter-derived from scanner report evidence only (never backfilled from context YAML/auto-context).
+- Scanner-version trust penalties must be derived from scanner report evidence. Context scanner metadata may be reported or validated, but it must not reduce scanner-version trust penalties.
 - Severity mapping must be deterministic and scanner-specific adapters must be pure functions.
 - For missing `finding_id`, fallback is SHA-256 over immutable fields in this order:
   `scanner.name + scanner.version + artifact.target_ref + artifact.location + classification.category + evidence.title`.
@@ -126,6 +127,7 @@ Rules:
 - Policy YAML file
 - Accepted Risk YAML file (optional)
 - Scanner adapter envelope checks (for example required report sections and supported schema version when provided)
+- Optional explicit evaluation time (`--evaluation-time`, RFC3339) for deterministic replay of freshness and expiry checks. If omitted, current UTC time is used and recorded as `generated_at`.
 
 SARIF-specific envelope rules (authoritative):
 - Top-level `version` is required and must equal `2.1.0`.
@@ -215,7 +217,7 @@ Examples:
 Trust is computed before numeric risk modifiers.
 
 ### Trust Inputs
-- scanner version pinning
+- scanner version pinning from scanner report evidence
 - scanner output freshness
 - artifact signing state
 - provenance level
@@ -237,6 +239,8 @@ Penalties (additive):
 
 Unknown values always apply the defined penalty.
 Malformed or future scan timestamps are treated as unknown for freshness evaluation.
+
+Freshness is evaluated relative to the run evaluation time. `report.json.generated_at` records that evaluation time so a run can be replayed with `--evaluation-time`. The deterministic `run_id` includes the evaluation time because freshness and expiry can affect the result.
 
 ### Trust-to-Risk Penalty Mapping
 - `TrustScore >= 80` -> `+0`

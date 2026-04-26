@@ -122,7 +122,7 @@ Summary:
 ## Trust and Provenance Flow
 
 Trust inputs originate from context and scanner metadata:
-- scanner name/version and freshness
+- scanner name/version from scanner report evidence and freshness relative to evaluation time
 - artifact signing state
 - provenance level
 - build context completeness

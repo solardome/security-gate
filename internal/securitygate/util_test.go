@@ -205,14 +205,19 @@ func TestStableRunIDDeterministic(t *testing.T) {
 		{Kind: "scan", Role: "main", Path: "/a.json", SHA256: "abc123"},
 		{Kind: "context", Role: "", Path: "/ctx.yaml", SHA256: "def456"},
 	}
-	id1 := stableRunID(inputs, "pr")
-	id2 := stableRunID(inputs, "pr")
+	evaluationTime := time.Date(2026, 2, 19, 12, 0, 0, 0, time.UTC)
+	id1 := stableRunID(inputs, "pr", evaluationTime)
+	id2 := stableRunID(inputs, "pr", evaluationTime)
 	if id1 != id2 {
 		t.Fatalf("stableRunID must be deterministic: %q != %q", id1, id2)
 	}
-	idDiff := stableRunID(inputs, "deploy")
+	idDiff := stableRunID(inputs, "deploy", evaluationTime)
 	if idDiff == id1 {
 		t.Fatal("different stage must produce different run ID")
+	}
+	idTimeDiff := stableRunID(inputs, "pr", evaluationTime.Add(time.Hour))
+	if idTimeDiff == id1 {
+		t.Fatal("different evaluation time must produce different run ID")
 	}
 }
 
@@ -243,7 +248,7 @@ func TestUnknownSignalValidationErrors(t *testing.T) {
 	}
 
 	// All signals known → no errors.
-	errs := unknownSignalValidationErrors(ctx, []string{freshAt})
+	errs := unknownSignalValidationErrors(ctx, []string{freshAt}, time.Now().UTC())
 	if len(errs) != 0 {
 		t.Fatalf("expected no errors with all signals known, got %v", errs)
 	}
@@ -251,7 +256,7 @@ func TestUnknownSignalValidationErrors(t *testing.T) {
 	// Missing scanner name → error.
 	ctx2 := ctx
 	ctx2.Scanner = ScannerMeta{Name: "", Version: "0.50.0"}
-	errs2 := unknownSignalValidationErrors(ctx2, []string{freshAt})
+	errs2 := unknownSignalValidationErrors(ctx2, []string{freshAt}, time.Now().UTC())
 	found := false
 	for _, e := range errs2 {
 		if strings.Contains(e, "context.scanner.name") {
@@ -263,7 +268,7 @@ func TestUnknownSignalValidationErrors(t *testing.T) {
 	}
 
 	// No valid detected_at → error.
-	errs3 := unknownSignalValidationErrors(ctx, []string{"unknown", "garbage"})
+	errs3 := unknownSignalValidationErrors(ctx, []string{"unknown", "garbage"}, time.Now().UTC())
 	found3 := false
 	for _, e := range errs3 {
 		if strings.Contains(e, "scans.detected_at") {

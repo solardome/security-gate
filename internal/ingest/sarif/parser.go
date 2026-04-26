@@ -225,6 +225,25 @@ func ReportDetectedAt(payload []byte) string {
 	return "unknown"
 }
 
+func ReportScannerVersions(payload []byte) []string {
+	var r report
+	if err := json.Unmarshal(payload, &r); err != nil {
+		return []string{"unknown"}
+	}
+	versions := make([]string, 0, len(r.Runs))
+	for _, ru := range r.Runs {
+		versions = append(versions, firstNonEmpty(
+			strings.TrimSpace(ru.Tool.Driver.SemanticVersion),
+			strings.TrimSpace(ru.Tool.Driver.Version),
+			"unknown",
+		))
+	}
+	if len(versions) == 0 {
+		return []string{"unknown"}
+	}
+	return versions
+}
+
 func validateReportEnvelope(payload []byte) error {
 	var root map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &root); err != nil {

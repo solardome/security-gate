@@ -37,6 +37,7 @@ go.work.sum
 .DS_Store
 
 # Build/output directories
+/security-gate
 /bin/
 /reports/
 /main

@@ -86,3 +86,30 @@ pipeline_stage: merge
 		t.Fatalf("unexpected error text: %s", s)
 	}
 }
+
+func TestParseAcceptedRiskAllowsOptionalFilters(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "accepted-risk.yaml")
+	content := `schema_version: "1.0"
+records:
+  - id: "AR-1"
+    status: active
+    owner: "team"
+    ticket: "SEC-1"
+    rationale: "temporary"
+    scope:
+      type: cve
+      value: "CVE-2026-0001"
+    timeline:
+      created_at: "2026-01-01T00:00:00Z"
+      expires_at: "2026-02-01T00:00:00Z"
+      sla_days: 31
+`
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var ar AcceptedRiskSet
+	if _, _, err := parseYAML(p, "accepted_risk", &ar); err != nil {
+		t.Fatalf("expected optional accepted-risk filters to be allowed, got %v", err)
+	}
+}

@@ -36,6 +36,7 @@ func main() {
 	var checksumsPath string
 	var runLogPath string
 	var noHTML bool
+	var evaluationTime string
 
 	flag.Var(&scans, "scan", "Path to scanner JSON (repeatable)")
 	flag.Var(&baselineScans, "baseline-scan", "Path to baseline scanner JSON (repeatable, used with --new-findings-only)")
@@ -49,6 +50,7 @@ func main() {
 	flag.StringVar(&checksumsPath, "checksums", "", "Output checksums.sha256 path (default next to out-json)")
 	flag.StringVar(&runLogPath, "run-log", "", "Output run log path (default next to out-json)")
 	flag.BoolVar(&noHTML, "no-html", false, "Disable report.html output")
+	flag.StringVar(&evaluationTime, "evaluation-time", "", "RFC3339 evaluation time for deterministic replay (default: current UTC time)")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "security-gate %s\n\nUsage:\n", version)
 		flag.PrintDefaults()
@@ -71,6 +73,7 @@ func main() {
 		ChecksumsPath:     checksumsPath,
 		RunLogPath:        runLogPath,
 		WriteHTML:         !noHTML,
+		EvaluationTime:    evaluationTime,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "security-gate error:", err)

@@ -112,6 +112,8 @@ These values can tighten or relax thresholds compared to defaults in `core-decis
 - `deploy_block_if_trust_below` (0..100)
 - `additional_risk_penalties`: integer penalties keyed by trust bands
 
+When `enabled=false`, trust score and trust penalties are still reported, but trust-derived risk penalties and release/deploy trust-floor decision upgrades are disabled. Policy rules that explicitly use `require_trust_at_least` still apply.
+
 Penalty keys must be exactly:
 - `trust_60_79`
 - `trust_40_59`

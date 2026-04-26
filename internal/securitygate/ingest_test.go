@@ -15,15 +15,15 @@ func TestParseScanSupportsAllConfiguredFormats(t *testing.T) {
     }
   ]
 }`)
-	trivyFindings, trivyDetectedAt, err := parseScan("scan.json", trivyPayload, "trivy", "0.50.0")
+	trivyFindings, trivyMetadata, err := parseScan("scan.json", trivyPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(trivyFindings) != 1 {
 		t.Fatalf("expected 1 trivy finding, got %d", len(trivyFindings))
 	}
-	if trivyDetectedAt != "2026-02-19T11:00:00Z" {
-		t.Fatalf("unexpected trivy detected_at: %s", trivyDetectedAt)
+	if trivyMetadata.DetectedAt != "2026-02-19T11:00:00Z" {
+		t.Fatalf("unexpected trivy detected_at: %s", trivyMetadata.DetectedAt)
 	}
 
 	sarifPayload := []byte(`{
@@ -36,7 +36,7 @@ func TestParseScanSupportsAllConfiguredFormats(t *testing.T) {
     }
   ]
 }`)
-	sarifFindings, sarifDetectedAt, err := parseScan("scan.sarif", sarifPayload, "unknown", "unknown")
+	sarifFindings, sarifMetadata, err := parseScan("scan.sarif", sarifPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,12 +46,15 @@ func TestParseScanSupportsAllConfiguredFormats(t *testing.T) {
 	if sarifFindings[0].ScannerName != "snyk" {
 		t.Fatalf("expected scanner from sarif driver, got %s", sarifFindings[0].ScannerName)
 	}
-	if sarifDetectedAt != "2026-02-19T12:00:00Z" {
-		t.Fatalf("unexpected sarif detected_at: %s", sarifDetectedAt)
+	if sarifMetadata.DetectedAt != "2026-02-19T12:00:00Z" {
+		t.Fatalf("unexpected sarif detected_at: %s", sarifMetadata.DetectedAt)
+	}
+	if len(sarifMetadata.ScannerVersions) != 1 || sarifMetadata.ScannerVersions[0] != "1.2.3" {
+		t.Fatalf("unexpected sarif scanner versions: %v", sarifMetadata.ScannerVersions)
 	}
 
 	snykPayload := []byte(`{"ok":false,"vulnerabilities":[]}`)
-	snykFindings, _, err := parseScan("snyk.json", snykPayload, "snyk", "1.0.0")
+	snykFindings, _, err := parseScan("snyk.json", snykPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +63,7 @@ func TestParseScanSupportsAllConfiguredFormats(t *testing.T) {
 	}
 
 	checkmarxPayload := []byte(`{"reportType":"json-v2","scanResults":[]}`)
-	checkmarxFindings, _, err := parseScan("checkmarx.json", checkmarxPayload, "checkmarx", "3.0.0")
+	checkmarxFindings, _, err := parseScan("checkmarx.json", checkmarxPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,21 +76,21 @@ func TestParseScanSupportsAllConfiguredFormats(t *testing.T) {
     {"ruleId":"R1","primaryLocation":{"message":"x","filePath":"a.go"}}
   ]
 }`)
-	sonarFindings, sonarDetectedAt, err := parseScan("sonar.json", sonarPayload, "sonar", "unknown")
+	sonarFindings, sonarMetadata, err := parseScan("sonar.json", sonarPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(sonarFindings) != 1 {
 		t.Fatalf("expected 1 sonar finding, got %d", len(sonarFindings))
 	}
-	if sonarDetectedAt != "unknown" {
-		t.Fatalf("expected unknown sonar detected_at, got %s", sonarDetectedAt)
+	if sonarMetadata.DetectedAt != "unknown" {
+		t.Fatalf("expected unknown sonar detected_at, got %s", sonarMetadata.DetectedAt)
 	}
 }
 
 func TestParseScanRejectsUnknownFormat(t *testing.T) {
 	unknownPayload := []byte(`{"hello":"world"}`)
-	_, _, err := parseScan("unknown.json", unknownPayload, "unknown", "unknown")
+	_, _, err := parseScan("unknown.json", unknownPayload)
 	if err == nil {
 		t.Fatalf("expected unsupported format error")
 	}
@@ -101,7 +104,7 @@ func TestParseScanUsesAdapterScannerIdentity(t *testing.T) {
     {"id":"SNYK-1","severity":"high","packageName":"lodash"}
   ]
 }`)
-	snykFindings, _, err := parseScan("snyk.json", snykPayload, "trivy", "0.50.0")
+	snykFindings, _, err := parseScan("snyk.json", snykPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +120,7 @@ func TestParseScanUsesAdapterScannerIdentity(t *testing.T) {
   "scanInfo":{"projectName":"payments-api"},
   "scanResults":[{"queryId":1,"queryName":"x","severity":"high"}]
 }`)
-	checkmarxFindings, _, err := parseScan("checkmarx.json", checkmarxPayload, "trivy", "0.50.0")
+	checkmarxFindings, _, err := parseScan("checkmarx.json", checkmarxPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +141,7 @@ func TestParseScanUsesAdapterScannerIdentity(t *testing.T) {
     }
   ]
 }`)
-	sonarFindings, _, err := parseScan("sonar.json", sonarPayload, "trivy", "0.50.0")
+	sonarFindings, _, err := parseScan("sonar.json", sonarPayload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +186,7 @@ func TestDetectScanFormatAcceptsContractMinimalEnvelopes(t *testing.T) {
 				t.Fatalf("unexpected format: got %s want %s", format, tc.wantFormat)
 			}
 
-			findings, _, err := parseScan(tc.name+".json", tc.payload, "trivy", "0.50.0")
+			findings, _, err := parseScan(tc.name+".json", tc.payload)
 			if err != nil {
 				t.Fatalf("parseScan failed: %v", err)
 			}
@@ -222,7 +225,7 @@ func TestDetectScanFormatSkipsInvalidHigherPrioritySignatures(t *testing.T) {
 		if format != "snyk" {
 			t.Fatalf("expected snyk after skipping invalid runs signature, got %s", format)
 		}
-		findings, _, err := parseScan("fallback-snyk.json", payload, "unknown", "unknown")
+		findings, _, err := parseScan("fallback-snyk.json", payload)
 		if err != nil {
 			t.Fatalf("expected snyk parse to succeed, got %v", err)
 		}
@@ -243,7 +246,7 @@ func TestDetectScanFormatSkipsInvalidHigherPrioritySignatures(t *testing.T) {
 		if format != "snyk" {
 			t.Fatalf("expected snyk when sarif version is missing, got %s", format)
 		}
-		findings, _, err := parseScan("fallback-snyk-missing-version.json", payload, "unknown", "unknown")
+		findings, _, err := parseScan("fallback-snyk-missing-version.json", payload)
 		if err != nil {
 			t.Fatalf("expected snyk parse to succeed, got %v", err)
 		}
@@ -265,7 +268,7 @@ func TestDetectScanFormatSkipsInvalidHigherPrioritySignatures(t *testing.T) {
 		if format != "snyk" {
 			t.Fatalf("expected snyk when sarif version is not a string, got %s", format)
 		}
-		findings, _, err := parseScan("fallback-snyk-non-string-version.json", payload, "unknown", "unknown")
+		findings, _, err := parseScan("fallback-snyk-non-string-version.json", payload)
 		if err != nil {
 			t.Fatalf("expected snyk parse to succeed, got %v", err)
 		}
@@ -286,7 +289,7 @@ func TestDetectScanFormatSkipsInvalidHigherPrioritySignatures(t *testing.T) {
 		if format != "checkmarx" {
 			t.Fatalf("expected checkmarx after skipping invalid Results signature, got %s", format)
 		}
-		findings, _, err := parseScan("fallback-checkmarx.json", payload, "unknown", "unknown")
+		findings, _, err := parseScan("fallback-checkmarx.json", payload)
 		if err != nil {
 			t.Fatalf("expected checkmarx parse to succeed, got %v", err)
 		}
@@ -312,7 +315,7 @@ func TestDetectScanFormatUsesDeterministicTieBreakAcrossAllValidSignatures(t *te
 	if format != "sarif" {
 		t.Fatalf("expected sarif due deterministic precedence, got %s", format)
 	}
-	findings, _, err := parseScan("ambiguous-all.json", payload, "unknown", "unknown")
+	findings, _, err := parseScan("ambiguous-all.json", payload)
 	if err != nil {
 		t.Fatalf("expected parse to follow sarif route, got %v", err)
 	}
@@ -325,7 +328,7 @@ func TestParseScanRejectsInvalidVulnerabilitiesType(t *testing.T) {
 	payload := []byte(`{
   "vulnerabilities":{"id":"GENERIC-1","severity":"high"}
 }`)
-	_, _, err := parseScan("unknown-vulns.json", payload, "unknown", "unknown")
+	_, _, err := parseScan("unknown-vulns.json", payload)
 	if err == nil {
 		t.Fatalf("expected unsupported snyk envelope error for non-array vulnerabilities")
 	}

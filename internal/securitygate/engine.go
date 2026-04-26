@@ -44,6 +44,7 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 			"new_findings_only", cfg.NewFindingsOnly,
 			"context_path", cfg.ContextPath,
 			"context_auto", cfg.AutoContext,
+			"evaluation_time", cfg.EvaluationTime,
 			"policy_path", cfg.PolicyPath,
 			"accepted_risk_path", cfg.AcceptedRiskPath,
 			"out_json", cfg.OutJSONPath,
@@ -94,7 +95,11 @@ func loadPhase(ctx context.Context, cfg Config, logger *slog.Logger) (EngineStat
 		return EngineState{}, err
 	}
 
-	state := EngineState{Now: time.Now().UTC()}
+	now, err := resolveEvaluationTime(cfg.EvaluationTime)
+	if err != nil {
+		return EngineState{}, err
+	}
+	state := EngineState{Now: now}
 	if err := loadInputs(ctx, &state, cfg); err != nil {
 		if logger != nil {
 			logger.Warn("run.load_inputs.error", "error", err.Error())
@@ -131,7 +136,7 @@ func scorePhase(ctx context.Context, state *EngineState, cfg Config, logger *slo
 		logger.Info("run.stage_mapping.ok", "effective_stage", state.EffectiveStage)
 	}
 	if shouldBlockReleaseOnUnknownSignals(state.Policy, state.EffectiveStage) {
-		unknownErrs := unknownSignalValidationErrors(state.Context, state.ScanDetectedAt)
+		unknownErrs := unknownSignalValidationErrors(state.Context, state.ScanDetectedAt, state.Now)
 		if len(unknownErrs) > 0 {
 			state.ValidationErrors = append(state.ValidationErrors, unknownErrs...)
 			addTrace(state, "unknown_signal_mode", "validation_error", map[string]any{
@@ -161,7 +166,7 @@ func scorePhase(ctx context.Context, state *EngineState, cfg Config, logger *slo
 
 	ruleRisk, minDecision, trustFloor, ruleStepIDs := applyPolicyRules(state.Policy, state.Context, state.EffectiveStage)
 
-	state.Trust = trustScore(state.Context, state.Policy, state.Findings)
+	state.Trust = trustScore(state.Context, state.Policy, state.Findings, state.ScanScannerVersions, state.ScanDetectedAt, state.Now)
 	for i := range state.Findings {
 		state.Findings[i].FindingRiskScore = scoreFinding(state.Findings[i], state.Context, state.Policy, state.EffectiveStage)
 	}
@@ -219,7 +224,7 @@ func writePhase(ctx context.Context, cfg Config, state *EngineState, logger *slo
 	}
 
 	sortFindingsDeterministically(state.Findings)
-	runID := stableRunID(state.InputDigests, state.EffectiveStage)
+	runID := stableRunID(state.InputDigests, state.EffectiveStage, state.Now)
 	report := buildReport(*state, runID)
 
 	if err := writeReportJSON(cfg.OutJSONPath, report); err != nil {
@@ -409,13 +414,12 @@ func loadScans(ctx context.Context, state *EngineState, paths []string) error {
 		if err != nil {
 			return fmt.Errorf("%w %s: %w", ErrScanUnreadable, p, err)
 		}
-		scannerName := firstNonEmpty(state.Context.Scanner.Name, "trivy")
-		scannerVersion := firstNonEmpty(state.Context.Scanner.Version, "unknown")
-		findings, detectedAt, err := parseScan(p, b, scannerName, scannerVersion)
+		findings, metadata, err := parseScan(p, b)
 		if err != nil {
 			return fmt.Errorf("%w %s: %w", ErrScanParseFailed, p, err)
 		}
-		state.ScanDetectedAt = append(state.ScanDetectedAt, detectedAt)
+		state.ScanDetectedAt = append(state.ScanDetectedAt, metadata.DetectedAt)
+		state.ScanScannerVersions = append(state.ScanScannerVersions, metadata.ScannerVersions...)
 		all = append(all, findings...)
 	}
 	state.Findings = normalizeFindings(all)
@@ -435,9 +439,7 @@ func loadBaselineScans(ctx context.Context, state *EngineState, paths []string) 
 		if err != nil {
 			return fmt.Errorf("%w baseline %s: %w", ErrScanUnreadable, p, err)
 		}
-		scannerName := firstNonEmpty(state.Context.Scanner.Name, "trivy")
-		scannerVersion := firstNonEmpty(state.Context.Scanner.Version, "unknown")
-		findings, _, err := parseScan(p, b, scannerName, scannerVersion)
+		findings, _, err := parseScan(p, b)
 		if err != nil {
 			return fmt.Errorf("%w baseline %s: %w", ErrScanParseFailed, p, err)
 		}
@@ -470,13 +472,15 @@ func decide(state *EngineState, ruleMinDecision string, ruleTrustFloor int) stri
 		decision = DecisionWarn
 	}
 
-	releaseWarnFloor := firstIntNonZero(state.Policy.TrustTightening.ReleaseWarnIfTrustBelow, 40)
-	deployBlockFloor := firstIntNonZero(state.Policy.TrustTightening.DeployBlockIfTrustBelow, 25)
-	if (stage == "release" || stage == "deploy") && state.Trust.Score < releaseWarnFloor && decision == DecisionAllow {
-		decision = DecisionWarn
-	}
-	if stage == "deploy" && state.Trust.Score < deployBlockFloor {
-		decision = DecisionBlock
+	if state.Policy.TrustTightening.Enabled {
+		releaseWarnFloor := firstIntNonZero(state.Policy.TrustTightening.ReleaseWarnIfTrustBelow, 40)
+		deployBlockFloor := firstIntNonZero(state.Policy.TrustTightening.DeployBlockIfTrustBelow, 25)
+		if (stage == "release" || stage == "deploy") && state.Trust.Score < releaseWarnFloor && decision == DecisionAllow {
+			decision = DecisionWarn
+		}
+		if stage == "deploy" && state.Trust.Score < deployBlockFloor {
+			decision = DecisionBlock
+		}
 	}
 	if ruleTrustFloor > 0 && state.Trust.Score < ruleTrustFloor && decision == DecisionAllow {
 		decision = DecisionWarn
@@ -630,7 +634,7 @@ func buildReport(state EngineState, runID string) Report {
 	}
 	report := Report{
 		SchemaVersion:  "1.0.0",
-		GeneratedAt:    "1970-01-01T00:00:00Z",
+		GeneratedAt:    state.Now.Format(time.RFC3339),
 		RunID:          runID,
 		Inputs:         state.InputDigests,
 		Context:        state.Context,

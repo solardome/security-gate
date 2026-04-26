@@ -264,6 +264,14 @@ func ReportDetectedAt(payload []byte) string {
 	return reportDetectedAt(r)
 }
 
+func ReportScannerVersion(payload []byte) string {
+	var r report
+	if err := json.Unmarshal(payload, &r); err != nil {
+		return "unknown"
+	}
+	return reportScannerVersion(r)
+}
+
 func normalizeToken(s string) string {
 	t := strings.TrimSpace(strings.ToLower(s))
 	if t == "" {

@@ -29,13 +29,16 @@ inputs:
     required: false
     default: ''
   version:
-    description: 'security-gate release tag to install (for example v1.0.0). Prefer explicit pinning; "latest" is non-deterministic.'
-    required: false
-    default: 'latest'
+    description: 'Pinned security-gate release tag to install (for example v1.0.0).'
+    required: true
   fail-on-warn:
     description: 'If true, the action fails on WARN (exit 1) in addition to BLOCK (exit 2)'
     required: false
     default: 'false'
+  evaluation-time:
+    description: 'Optional RFC3339 evaluation time for deterministic replay'
+    required: false
+    default: ''
 
 outputs:
   decision:
@@ -63,40 +66,34 @@ runs:
     - name: Determine version tag
       id: version
       shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        if [ "${{ inputs.version }}" = "latest" ]; then
-          echo "::warning::inputs.version=latest is non-deterministic. Pin an explicit release tag for reproducible CI."
-          TAG=$(gh api repos/solardome/security-gate/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
-          if [ -z "$TAG" ]; then
-            echo "::error::Could not determine latest release. Specify an explicit version."
-            exit 1
-          fi
-        else
-          TAG="${{ inputs.version }}"
-        fi
-        TAG="$(echo "${TAG}" | xargs)"
+        TAG="${INPUT_VERSION}"
+        TAG="${TAG#"${TAG%%[![:space:]]*}"}"
+        TAG="${TAG%"${TAG##*[![:space:]]}"}"
         if [ -z "${TAG}" ]; then
-          echo "::error::Resolved security-gate tag is empty."
+          echo "::error::inputs.version is required. Pin an explicit security-gate release tag."
+          exit 1
+        fi
+        if [ "${TAG}" = "latest" ]; then
+          echo "::error::inputs.version=latest is not allowed because it is non-deterministic."
+          exit 1
+        fi
+        if [[ ! "${TAG}" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+          echo "::error::inputs.version must be a pinned release tag containing only letters, numbers, dot, underscore, plus, or hyphen."
           exit 1
         fi
         echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-      env:
-        GH_TOKEN: ${{ github.token }}
-
-    - name: Cache security-gate binary
-      id: cache
-      uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-      with:
-        path: ${{ runner.temp }}/security-gate-bin
-        key: security-gate-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.tag }}
 
     - name: Install security-gate
-      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        SECURITY_GATE_TAG: ${{ steps.version.outputs.tag }}
       run: |
         set -euo pipefail
-        TAG="${{ steps.version.outputs.tag }}"
+        TAG="${SECURITY_GATE_TAG}"
         OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
         ARCH="$(uname -m)"
         case "$ARCH" in
@@ -104,26 +101,59 @@ runs:
           aarch64) ARCH="arm64" ;;
         esac
         ASSET="security-gate_${OS}_${ARCH}"
-        URL="https://github.com/solardome/security-gate/releases/download/${TAG}/${ASSET}"
-        mkdir -p "${{ runner.temp }}/security-gate-bin"
+        BASE_URL="https://github.com/solardome/security-gate/releases/download/${TAG}"
+        URL="${BASE_URL}/${ASSET}"
+        BIN_DIR="${RUNNER_TEMP}/security-gate-bin"
+        mkdir -p "${BIN_DIR}"
         echo "Downloading ${URL}"
-        curl -fsSL -o "${{ runner.temp }}/security-gate-bin/security-gate" "${URL}"
-        chmod +x "${{ runner.temp }}/security-gate-bin/security-gate"
+        curl -fsSL -o "${BIN_DIR}/security-gate" "${URL}"
+        curl -fsSL -o "${BIN_DIR}/SHA256SUMS" "${BASE_URL}/SHA256SUMS"
+        EXPECTED="$(awk -v asset="${ASSET}" '$2 == asset {print $1}' "${BIN_DIR}/SHA256SUMS")"
+        if [ -z "${EXPECTED}" ]; then
+          echo "::error::SHA256SUMS does not contain ${ASSET}."
+          exit 1
+        fi
+        if command -v sha256sum >/dev/null 2>&1; then
+          ACTUAL="$(sha256sum "${BIN_DIR}/security-gate" | awk '{print $1}')"
+        else
+          ACTUAL="$(shasum -a 256 "${BIN_DIR}/security-gate" | awk '{print $1}')"
+        fi
+        if [ "${EXPECTED}" != "${ACTUAL}" ]; then
+          echo "::error::Checksum verification failed for ${ASSET}."
+          exit 1
+        fi
+        chmod +x "${BIN_DIR}/security-gate"
 
     - name: Run security-gate
       id: run
       shell: bash
+      env:
+        INPUT_SCAN: ${{ inputs.scan }}
+        INPUT_BASELINE_SCAN: ${{ inputs.baseline-scan }}
+        INPUT_NEW_FINDINGS_ONLY: ${{ inputs.new-findings-only }}
+        INPUT_POLICY: ${{ inputs.policy }}
+        INPUT_ACCEPTED_RISK: ${{ inputs.accepted-risk }}
+        INPUT_CONTEXT: ${{ inputs.context }}
+        INPUT_FAIL_ON_WARN: ${{ inputs.fail-on-warn }}
+        INPUT_EVALUATION_TIME: ${{ inputs.evaluation-time }}
       run: |
         set -uo pipefail
-        SG="${{ runner.temp }}/security-gate-bin/security-gate"
-        REPORT_DIR="${{ runner.temp }}/security-gate-reports"
+        SG="${RUNNER_TEMP}/security-gate-bin/security-gate"
+        REPORT_DIR="${RUNNER_TEMP}/security-gate-reports"
         mkdir -p "${REPORT_DIR}"
+
+        trim() {
+          local value="$1"
+          value="${value#"${value%%[![:space:]]*}"}"
+          value="${value%"${value##*[![:space:]]}"}"
+          printf '%s' "${value}"
+        }
 
         # Build --scan flags by expanding globs / comma-separated paths
         SCAN_ARGS=()
-        IFS=',' read -ra SCAN_INPUTS <<< "${{ inputs.scan }}"
+        IFS=',' read -ra SCAN_INPUTS <<< "${INPUT_SCAN}"
         for pattern in "${SCAN_INPUTS[@]}"; do
-          pattern="$(echo "$pattern" | xargs)"  # trim whitespace
+          pattern="$(trim "${pattern}")"
           [ -z "$pattern" ] && continue
           for f in $pattern; do
             [ -f "$f" ] && SCAN_ARGS+=(--scan "$f")
@@ -131,16 +161,16 @@ runs:
         done
 
         if [ ${#SCAN_ARGS[@]} -eq 0 ]; then
-          echo "::error::No scan files matched the pattern: ${{ inputs.scan }}"
+          echo "::error::No scan files matched the pattern: ${INPUT_SCAN}"
           exit 2
         fi
 
         # Build --baseline-scan flags
         BASELINE_ARGS=()
-        if [ -n "${{ inputs.baseline-scan }}" ]; then
-          IFS=',' read -ra BASELINE_INPUTS <<< "${{ inputs.baseline-scan }}"
+        if [ -n "${INPUT_BASELINE_SCAN}" ]; then
+          IFS=',' read -ra BASELINE_INPUTS <<< "${INPUT_BASELINE_SCAN}"
           for pattern in "${BASELINE_INPUTS[@]}"; do
-            pattern="$(echo "$pattern" | xargs)"
+            pattern="$(trim "${pattern}")"
             [ -z "$pattern" ] && continue
             for f in $pattern; do
               [ -f "$f" ] && BASELINE_ARGS+=(--baseline-scan "$f")
@@ -151,39 +181,65 @@ runs:
         # Build optional flags
         OPTIONAL_ARGS=()
 
-        if [ "${{ inputs.new-findings-only }}" = "true" ]; then
+        if [ "${INPUT_NEW_FINDINGS_ONLY}" = "true" ]; then
           OPTIONAL_ARGS+=(--new-findings-only)
         fi
 
-        if [ -n "${{ inputs.context }}" ]; then
-          OPTIONAL_ARGS+=(--context "${{ inputs.context }}")
+        if [ -n "${INPUT_CONTEXT}" ]; then
+          OPTIONAL_ARGS+=(--context "${INPUT_CONTEXT}")
         else
           OPTIONAL_ARGS+=(--context-auto)
         fi
 
-        if [ -n "${{ inputs.accepted-risk }}" ]; then
-          OPTIONAL_ARGS+=(--accepted-risk "${{ inputs.accepted-risk }}")
+        if [ -n "${INPUT_ACCEPTED_RISK}" ]; then
+          OPTIONAL_ARGS+=(--accepted-risk "${INPUT_ACCEPTED_RISK}")
+        fi
+
+        if [ -n "${INPUT_EVALUATION_TIME}" ]; then
+          OPTIONAL_ARGS+=(--evaluation-time "${INPUT_EVALUATION_TIME}")
         fi
 
         # Run security-gate
+        set +e
         OUTPUT=$("${SG}" \
           "${SCAN_ARGS[@]}" \
           ${BASELINE_ARGS[@]+"${BASELINE_ARGS[@]}"} \
-          --policy "${{ inputs.policy }}" \
+          --policy "${INPUT_POLICY}" \
           "${OPTIONAL_ARGS[@]}" \
           --out-json  "${REPORT_DIR}/report.json" \
           --out-html  "${REPORT_DIR}/report.html" \
           --checksums "${REPORT_DIR}/checksums.sha256" \
           --run-log   "${REPORT_DIR}/security-gate.run.log" \
-          2>&1) || true
-        EXIT_CODE=${PIPESTATUS[0]:-$?}
+          2>&1)
+        EXIT_CODE=$?
+        set -e
 
         echo "${OUTPUT}"
 
         # Parse stdout line: decision=ALLOW exit_code=0 overall_risk=25 trust=85 ...
-        DECISION=$(echo "${OUTPUT}" | grep -oP 'decision=\K\S+' || echo "UNKNOWN")
-        RISK=$(echo "${OUTPUT}" | grep -oP 'overall_risk=\K\S+' || echo "-1")
-        TRUST=$(echo "${OUTPUT}" | grep -oP 'trust=\K\S+' || echo "-1")
+        extract_output_field() {
+          local key="$1"
+          local fallback="$2"
+          local line
+          local token
+          local -a tokens
+          while IFS= read -r line; do
+            read -ra tokens <<< "${line}"
+            for token in "${tokens[@]}"; do
+              case "${token}" in
+                ${key}=*)
+                  printf '%s\n' "${token#*=}"
+                  return 0
+                  ;;
+              esac
+            done
+          done <<< "${OUTPUT}"
+          printf '%s\n' "${fallback}"
+        }
+
+        DECISION="$(extract_output_field "decision" "UNKNOWN")"
+        RISK="$(extract_output_field "overall_risk" "-1")"
+        TRUST="$(extract_output_field "trust" "-1")"
 
         # Set outputs
         echo "decision=${DECISION}"           >> "$GITHUB_OUTPUT"
@@ -212,12 +268,15 @@ runs:
           echo "::error::Security gate decision: BLOCK (exit code 2)"
           exit 2
         elif [ "${EXIT_CODE}" -eq 1 ]; then
-          if [ "${{ inputs.fail-on-warn }}" = "true" ]; then
+          if [ "${INPUT_FAIL_ON_WARN}" = "true" ]; then
             echo "::warning::Security gate decision: WARN (exit code 1, fail-on-warn enabled)"
             exit 1
           else
             echo "::warning::Security gate decision: WARN (exit code 1, continuing)"
           fi
+        elif [ "${EXIT_CODE}" -ne 0 ]; then
+          echo "::error::Security gate failed unexpectedly (exit code ${EXIT_CODE})"
+          exit "${EXIT_CODE}"
         fi
 
     - name: Upload reports

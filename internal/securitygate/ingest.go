@@ -11,50 +11,55 @@ import (
 	"github.com/solardome/security-gate/internal/ingest/trivy"
 )
 
-func parseScan(path string, payload []byte, scannerName, scannerVersion string) ([]AdapterFinding, string, error) {
+type scanMetadata struct {
+	DetectedAt      string
+	ScannerVersions []string
+}
+
+func parseScan(path string, payload []byte) ([]AdapterFinding, scanMetadata, error) {
 	format, err := detectScanFormat(payload)
 	if err != nil {
-		return nil, "unknown", err
+		return nil, scanMetadata{DetectedAt: "unknown", ScannerVersions: []string{"unknown"}}, err
 	}
 	switch format {
 	case "trivy":
 		reportDetectedAt := trivy.ReportDetectedAt(payload)
-		findings, err := trivy.Parse(path, payload, scannerName, scannerVersion)
+		findings, err := trivy.Parse(path, payload, "", "")
 		if err != nil {
-			return nil, "", err
+			return nil, scanMetadata{}, err
 		}
-		return fromTrivyFindings(findings), reportDetectedAt, nil
+		return fromTrivyFindings(findings), scanMetadata{DetectedAt: reportDetectedAt, ScannerVersions: []string{trivy.ReportScannerVersion(payload)}}, nil
 	case "sarif":
 		reportDetectedAt := sarif.ReportDetectedAt(payload)
 		// Keep scanner identity adapter-native for non-Trivy formats.
 		findings, err := sarif.Parse(path, payload, "", "")
 		if err != nil {
-			return nil, "", err
+			return nil, scanMetadata{}, err
 		}
-		return fromSARIFFindings(findings), reportDetectedAt, nil
+		return fromSARIFFindings(findings), scanMetadata{DetectedAt: reportDetectedAt, ScannerVersions: sarif.ReportScannerVersions(payload)}, nil
 	case "snyk":
 		reportDetectedAt := snyk.ReportDetectedAt(payload)
 		findings, err := snyk.Parse(path, payload, "", "")
 		if err != nil {
-			return nil, "", err
+			return nil, scanMetadata{}, err
 		}
-		return fromSnykFindings(findings), reportDetectedAt, nil
+		return fromSnykFindings(findings), scanMetadata{DetectedAt: reportDetectedAt, ScannerVersions: []string{"unknown"}}, nil
 	case "checkmarx":
 		reportDetectedAt := checkmarx.ReportDetectedAt(payload)
 		findings, err := checkmarx.Parse(path, payload, "", "")
 		if err != nil {
-			return nil, "", err
+			return nil, scanMetadata{}, err
 		}
-		return fromCheckmarxFindings(findings), reportDetectedAt, nil
+		return fromCheckmarxFindings(findings), scanMetadata{DetectedAt: reportDetectedAt, ScannerVersions: []string{"unknown"}}, nil
 	case "sonar":
 		reportDetectedAt := sonar.ReportDetectedAt(payload)
 		findings, err := sonar.Parse(path, payload, "", "")
 		if err != nil {
-			return nil, "", err
+			return nil, scanMetadata{}, err
 		}
-		return fromSonarFindings(findings), reportDetectedAt, nil
+		return fromSonarFindings(findings), scanMetadata{DetectedAt: reportDetectedAt, ScannerVersions: []string{"unknown"}}, nil
 	default:
-		return nil, "unknown", fmt.Errorf("%w: %q", ErrUnsupportedFormat, format)
+		return nil, scanMetadata{DetectedAt: "unknown", ScannerVersions: []string{"unknown"}}, fmt.Errorf("%w: %q", ErrUnsupportedFormat, format)
 	}
 }
 

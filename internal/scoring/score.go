@@ -12,7 +12,6 @@ type Context struct {
 	RepoCriticality string
 	Exposure        string
 	ChangeType      string
-	ScannerVersion  string
 	ArtifactSigned  string
 	ProvenanceLevel string
 	BuildIntegrity  string
@@ -37,13 +36,15 @@ type DomainSeverityBoost struct {
 }
 
 type Policy struct {
-	ScanFreshnessHours int
-	TrustBands         TrustBandPenalties
-	SeverityBoosts     []DomainSeverityBoost
+	ScanFreshnessHours     int
+	TrustBands             TrustBandPenalties
+	SeverityBoosts         []DomainSeverityBoost
+	DisableTrustTightening bool
 }
 
 type Finding struct {
 	DetectedAt       string
+	ScannerVersion   string
 	Severity         string
 	ExploitMaturity  string
 	Reachability     string
@@ -117,13 +118,22 @@ func EffectiveStage(ctx Context) string {
 // TrustScore computes the trust score and trust-derived risk penalty for the
 // provided context and findings, clamping the result to the 0..100 range.
 func TrustScore(ctx Context, pol Policy, findings []Finding) TrustResult {
+	return TrustScoreAt(ctx, pol, findings, nil, nil, time.Now().UTC())
+}
+
+func TrustScoreAt(ctx Context, pol Policy, findings []Finding, scannerVersions, scanDetectedAt []string, now time.Time) TrustResult {
 	penalties := []TrustPenalty{}
 	add := func(code string, value int) {
 		penalties = append(penalties, TrustPenalty{Code: code, Value: value})
 	}
-	if normalizeToken(ctx.ScannerVersion) == "unknown" || strings.TrimSpace(ctx.ScannerVersion) == "" {
+	if scannerVersions == nil {
+		scannerVersions = scannerVersionsFromFindings(findings)
+	}
+	versionState := scannerVersionState(scannerVersions)
+	switch versionState {
+	case "unknown":
 		add("SCANNER_VERSION_UNKNOWN", 15)
-	} else if strings.Contains(strings.ToLower(ctx.ScannerVersion), "latest") || strings.Contains(strings.ToLower(ctx.ScannerVersion), "dev") {
+	case "unpinned":
 		add("SCANNER_VERSION_UNPINNED", 10)
 	}
 
@@ -131,12 +141,18 @@ func TrustScore(ctx Context, pol Policy, findings []Finding) TrustResult {
 	if freshnessHours <= 0 {
 		freshnessHours = 24
 	}
-	now := time.Now().UTC()
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
 	cutoffFuture := now.Add(5 * time.Minute)
+	detectedAtCandidates := append([]string{}, scanDetectedAt...)
+	for _, f := range findings {
+		detectedAtCandidates = append(detectedAtCandidates, f.DetectedAt)
+	}
 	var newestDetected time.Time
 	hasDetectedAt := false
-	for _, f := range findings {
-		raw := strings.TrimSpace(f.DetectedAt)
+	for _, candidate := range detectedAtCandidates {
+		raw := strings.TrimSpace(candidate)
 		if normalizeToken(raw) == "unknown" {
 			continue
 		}
@@ -191,12 +207,40 @@ func TrustScore(ctx Context, pol Policy, findings []Finding) TrustResult {
 		totalPenalty += p.Value
 	}
 	score := clamp(100-totalPenalty, 0, 100)
-	riskPenalty := TrustPenaltyBand(score, pol.TrustBands)
+	riskPenalty := 0
+	if !pol.DisableTrustTightening {
+		riskPenalty = TrustPenaltyBand(score, pol.TrustBands)
+	}
 	return TrustResult{
 		Score:       score,
 		RiskPenalty: riskPenalty,
 		Penalties:   penalties,
 	}
+}
+
+func scannerVersionsFromFindings(findings []Finding) []string {
+	versions := make([]string, 0, len(findings))
+	for _, f := range findings {
+		versions = append(versions, f.ScannerVersion)
+	}
+	return versions
+}
+
+func scannerVersionState(versions []string) string {
+	if len(versions) == 0 {
+		return "unknown"
+	}
+	for _, raw := range versions {
+		version := strings.TrimSpace(raw)
+		if normalizeToken(version) == "unknown" {
+			return "unknown"
+		}
+		lower := strings.ToLower(version)
+		if strings.Contains(lower, "latest") || strings.Contains(lower, "dev") {
+			return "unpinned"
+		}
+	}
+	return "pinned"
 }
 
 func TrustPenaltyBand(score int, bands TrustBandPenalties) int {

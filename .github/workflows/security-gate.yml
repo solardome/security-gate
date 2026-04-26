@@ -33,15 +33,19 @@ on:
         type: string
         default: ''
       version:
-        description: 'security-gate release tag to install (pin explicit tag for reproducible CI; "latest" is non-deterministic)'
-        required: false
+        description: 'Pinned security-gate release tag to install'
+        required: true
         type: string
-        default: 'latest'
       fail-on-warn:
         description: 'Fail the workflow on WARN decisions'
         required: false
         type: boolean
         default: false
+      evaluation-time:
+        description: 'Optional RFC3339 evaluation time for deterministic replay'
+        required: false
+        type: string
+        default: ''
     outputs:
       decision:
         description: 'Gate decision'
@@ -81,3 +85,4 @@ jobs:
           context: ${{ inputs.context }}
           version: ${{ inputs.version }}
           fail-on-warn: ${{ inputs.fail-on-warn }}
+          evaluation-time: ${{ inputs.evaluation-time }}

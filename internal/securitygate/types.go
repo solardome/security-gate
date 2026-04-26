@@ -59,6 +59,9 @@ type Config struct {
 	RunLogPath string
 	// WriteHTML controls whether the derived HTML report is written.
 	WriteHTML bool
+	// EvaluationTime is an optional RFC3339 timestamp used for deterministic
+	// replay of freshness and accepted-risk expiry checks.
+	EvaluationTime string
 }
 
 type Context struct {
@@ -287,26 +290,27 @@ type UnifiedRaw struct {
 }
 
 type EngineState struct {
-	InputDigests       []InputDigest
-	Context            Context
-	Policy             Policy
-	AcceptedRisk       AcceptedRiskSet
-	Findings           []UnifiedFinding
-	BaselineFindings   []UnifiedFinding
-	ScanDetectedAt     []string
-	EffectiveStage     string
-	ValidationFailed   bool
-	ValidationErrors   []string
-	ValidationWarnings []string
-	HardStopDomains    []string
-	Trust              TrustResult
-	Risk               RiskResult
-	Decision           string
-	ExitCode           int
-	RecommendedSteps   []RecommendedStep
-	Trace              []TraceEntry
-	GovernanceSummary  GovernanceSummary
-	Now                time.Time
+	InputDigests        []InputDigest
+	Context             Context
+	Policy              Policy
+	AcceptedRisk        AcceptedRiskSet
+	Findings            []UnifiedFinding
+	BaselineFindings    []UnifiedFinding
+	ScanDetectedAt      []string
+	ScanScannerVersions []string
+	EffectiveStage      string
+	ValidationFailed    bool
+	ValidationErrors    []string
+	ValidationWarnings  []string
+	HardStopDomains     []string
+	Trust               TrustResult
+	Risk                RiskResult
+	Decision            string
+	ExitCode            int
+	RecommendedSteps    []RecommendedStep
+	Trace               []TraceEntry
+	GovernanceSummary   GovernanceSummary
+	Now                 time.Time
 }
 
 type InputDigest struct {
